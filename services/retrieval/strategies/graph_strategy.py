@@ -9,10 +9,7 @@ class GraphStrategy(RetrievalStrategy):
 
         self.graph_db = Neo4jService()
 
-    def retrieve(
-        self,
-        query: str
-    ):
+    def retrieve(self, query: str):
 
         cypher = """
         MATCH (p:Pod)-[:RUNS_ON]->(n:Node)

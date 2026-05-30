@@ -56,9 +56,7 @@ def search(
 
 
 @app.get("/ask")
-def ask(
-    query: str
-):
+def ask(query: str):
 
     return rag_service.ask(
         query=query

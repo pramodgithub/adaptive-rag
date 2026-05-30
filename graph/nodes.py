@@ -1,17 +1,22 @@
 from core.llm.prompts.retrieval_prompt import build_retrieval_prompt
 
-from services.audit.audit_service import AuditService
 from services.evaluation.answer_retry_service import AnswerRetryService
+from services.evaluation.retrieval_judge import RetrievalJudge
+
 from services.retrieval.query_rewriter import QueryRewriter
 from services.retrieval.reranker import RetrievalReranker
 from services.retrieval.retrieval_evaluator import RetrievalEvaluator
 from services.retrieval.retrieval_service import RetrievalService
 from services.retrieval.retrieval_planner import RetrievalPlanner
 
+from services.audit.audit_service import AuditService
+
 planner = RetrievalPlanner()
 reranker = RetrievalReranker()
 retriever = RetrievalService()
+
 retrieval_evaluator = RetrievalEvaluator()
+judge = RetrievalJudge()
 
 rewriter = QueryRewriter()
 generator = AnswerRetryService()
@@ -33,6 +38,7 @@ def retrieve_node(state):
         or state["query"]
     )
 
+    all_results = []
     retrieved = []
 
     for strategy_name in state["strategies"]:
@@ -49,14 +55,27 @@ def retrieve_node(state):
             )
         )
 
-        retrieved.extend(results)
+        all_results.extend(results)
 
     retrieved = reranker.rank(
-        retrieved
+        all_results
+    )
+    context = "\n\n".join(
+        r.text
+        for r in retrieved
+    )
+
+    judge_evaluation = (
+        judge.evaluate(
+            query,
+            context
+        )
     )
 
     return {
-        "retrieved": retrieved
+        "retrieved": retrieved,
+        "retrieval_judge": judge_evaluation,
+        "all_results": all_results
     }
 
 

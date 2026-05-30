@@ -27,7 +27,8 @@ class ToolStrategy(RetrievalStrategy):
                 return [
                     RetrievalResult(
                         text=result,
-                        score=0.95
+                        score=0.95,
+                        source="tool"
                     )
                 ]
 

@@ -16,3 +16,7 @@ class RAGState(TypedDict):
     metadata: dict
 
     retry_count: int
+
+    retrieval_judge: dict
+
+    all_results: list

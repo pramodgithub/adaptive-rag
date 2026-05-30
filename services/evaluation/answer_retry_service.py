@@ -25,7 +25,7 @@ class AnswerRetryService:
 
         if evaluation.should_retry:
 
-            retry_prompt = build_eval_retry_prompt(prompt)
+            retry_prompt = build_eval_retry_prompt(prompt, evaluation)
 
             response = self.llm.generate(retry_prompt)
 
