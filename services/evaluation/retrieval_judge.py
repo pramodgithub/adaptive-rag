@@ -1,4 +1,5 @@
 from unittest import result
+from mlflow import trace
 
 from core.llm.router import ModelRouter
 from core.llm.prompts.retrieval_judge_prompt import build_retrieval_judge_prompt
@@ -12,6 +13,7 @@ class RetrievalJudge:
 
         self.llm = ModelRouter()
 
+    @trace
     def evaluate(self, query: str, context: str) -> RetrievalJudgeEvaluation:
 
         prompt = build_retrieval_judge_prompt(
@@ -19,8 +21,8 @@ class RetrievalJudge:
             context
         )
 
-        result = self.llm.generate(
-            prompt
+        result = self.llm.generate_for_node(
+            prompt, node_name="retrieval_judge"
         )
 
         return EvaluationParser.parsejudge(

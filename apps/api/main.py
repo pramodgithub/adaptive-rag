@@ -6,6 +6,9 @@ from services.ingestion.ingestion_service import IngestionService
 
 from services.retrieval.rag_service import RAGService
 from services.retrieval.retrieval_service import RetrievalService
+from services.observability.mlflow_service import MLflowService
+
+mlflow_service = MLflowService()
 
 app = FastAPI()
 

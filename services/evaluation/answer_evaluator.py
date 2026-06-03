@@ -1,5 +1,7 @@
 import json
 import re
+import mlflow
+from mlflow import trace
 
 from core.llm.prompts.answer_evaluator_prompt import build_answer_evaluator_prompt
 from core.schemas.evaluation import AnswerEvaluation
@@ -13,6 +15,7 @@ class AnswerEvaluator:
     def __init__(self):
         self.llm = ModelRouter()
 
+    @trace
     def evaluate(self, query: str, answer: str, context: str) -> AnswerEvaluation:
 
         prompt = build_answer_evaluator_prompt(
@@ -21,7 +24,8 @@ class AnswerEvaluator:
             answer=answer
         )
 
-        response = self.llm.generate(prompt)
+        response = self.llm.generate_for_node(
+            prompt, node_name="answer_evaluation")
 
         result = self.extract_json(response["text"])
 
@@ -86,6 +90,7 @@ class AnswerEvaluator:
             should_retry = False
             retry_type = None
 
+        mlflow.log_metric("answer_confidence", result["confidence"])
         return AnswerEvaluation(
             grounded=result["grounded"],
             complete=result["complete"],

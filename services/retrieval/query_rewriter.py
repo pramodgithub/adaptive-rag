@@ -17,7 +17,8 @@ class QueryRewriter:
 
         prompt = build_query_rewriter_prompt(query, context)
 
-        response = self.llm.generate(prompt)
+        response = self.llm.generate_for_node(
+            prompt, node_name="query_rewrite")
 
         rewritten_query = response["text"].strip()
 

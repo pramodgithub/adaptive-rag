@@ -6,9 +6,7 @@ from core.schemas.retrieval import RetrievalJudgeEvaluation
 class EvaluationParser:
 
     @staticmethod
-    def parse(
-        response: str
-    ):
+    def parse(response: str):
 
         try:
 

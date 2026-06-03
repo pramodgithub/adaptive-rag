@@ -1,3 +1,6 @@
+import mlflow
+from mlflow import trace
+
 from core.schemas.retrieval import RetrievalEvaluation
 from core.schemas.retrieval import RetrievalResult
 
@@ -6,12 +9,14 @@ class RetrievalEvaluator:
 
     RETRY_THRESHOLD = 0.40
 
+    @trace
     def evaluate(
         self,
         results: list[RetrievalResult]
     ) -> RetrievalEvaluation:
 
         if not results:
+            mlflow.log_metric("retrieval_confidence", 0)
             return RetrievalEvaluation(
                 confidence=0,
                 should_retry=True,
@@ -31,7 +36,7 @@ class RetrievalEvaluator:
         should_retry = (
             confidence < self.RETRY_THRESHOLD
         )
-
+        mlflow.log_metric("retrieval_confidence", confidence)
         reason = (
             "Low retrieval confidence"
             if should_retry

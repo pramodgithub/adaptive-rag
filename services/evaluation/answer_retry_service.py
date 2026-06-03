@@ -1,4 +1,5 @@
-from core.llm.prompts.eval_retry_prompt import build_eval_retry_prompt
+from mlflow import trace
+from core.llm.prompts.eval_answer_prompt import build_answer_retry_prompt
 from core.llm.router import ModelRouter
 from services.evaluation.answer_evaluator import AnswerEvaluator
 
@@ -11,9 +12,11 @@ class AnswerRetryService:
         self.llm = ModelRouter()
         self.evaluator = AnswerEvaluator()
 
+    @trace
     def generate(self, query: str, prompt: str, context: str):
 
-        response = self.llm.generate(prompt)
+        response = self.llm.generate_for_node(
+            prompt, node_name="answer_generation")
 
         answer = response["text"]
 
@@ -25,9 +28,10 @@ class AnswerRetryService:
 
         if evaluation.should_retry:
 
-            retry_prompt = build_eval_retry_prompt(prompt, evaluation)
+            retry_prompt = build_answer_retry_prompt(prompt, evaluation)
 
-            response = self.llm.generate(retry_prompt)
+            response = self.llm.generate_for_node(
+                retry_prompt, node_name="answer_retry")
 
             answer = response["text"]
 

@@ -1,3 +1,5 @@
+from mlflow import trace
+
 from services.retrieval.strategies.tool_strategy import ToolStrategy
 from services.retrieval.strategies.vector_strategy import VectorStrategy
 from services.retrieval.strategies.web_strategy import WebStrategy
@@ -13,6 +15,7 @@ class RetrievalPlanner:
         self.graph = GraphStrategy()
         self.tool = ToolStrategy()
 
+    @trace
     def select(self, query: str):
 
         strategies = []
@@ -55,6 +58,7 @@ class RetrievalPlanner:
 
         return strategies
 
+    @trace
     def get_strategy(self, strategy: str):
 
         return {

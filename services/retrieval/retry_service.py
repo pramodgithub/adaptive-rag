@@ -1,3 +1,6 @@
+import mlflow
+from mlflow import trace
+
 from core.schemas.retrieval import RetrievalResult
 from services.retrieval.query_rewriter import QueryRewriter
 from services.retrieval.retrieval_evaluator import RetrievalEvaluator
@@ -32,7 +35,7 @@ class RetryService:
                 break
 
             current_query = self.rewriter.rewrite(current_query)
-
+        mlflow.log_metric("retry_attempts", attempt)
         metadata = {
             "final_query": current_query,
             "confidence": best_eval.confidence,

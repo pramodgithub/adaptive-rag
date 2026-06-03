@@ -1,7 +1,7 @@
 from core.schemas.evaluation import AnswerEvaluation
 
 
-def build_eval_retry_prompt(prompt, eval_result) -> str:
+def build_answer_retry_prompt(prompt, eval_result) -> str:
 
    # Build specific guidance from what actually failed
     failure_reasons = []

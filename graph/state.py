@@ -3,6 +3,8 @@ from typing import TypedDict
 
 class RAGState(TypedDict):
 
+    execution_id: str
+
     query: str
     strategies: list[str]
 
@@ -20,3 +22,4 @@ class RAGState(TypedDict):
     retrieval_judge: dict
 
     all_results: list
+    node_metrics: dict

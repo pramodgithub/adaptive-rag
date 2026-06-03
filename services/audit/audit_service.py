@@ -1,9 +1,11 @@
+from mlflow import trace
+
 from database.models.audit import AuditLog
 from database.session import SessionLocal
 
 
 class AuditService:
-
+    @trace
     def save(
         self,
         query: str,
