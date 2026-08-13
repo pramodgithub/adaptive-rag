@@ -17,9 +17,15 @@ services:
       redis:
         condition: service_started
     volumes:
-      - ./apps:/app/apps          # ← only mount source code
-      - ./database:/app/database  # ← mount migrations if needed
+      - ./apps:/app/apps
+      - ./database:/app/database
       - ./core:/app/core
+      - ./tests:/app/tests
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./enums:/app/enums
+      - ./config:/app/config
+      - ./services:/app/services
       - ./tests:/app/tests
     restart: unless-stopped
 

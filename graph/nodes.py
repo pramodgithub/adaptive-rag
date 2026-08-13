@@ -126,8 +126,7 @@ def evaluate_retrieval_node(state):
 def rewrite_query_node(state):
     start = time.time()
     context = "\n".join(
-        chunk.text
-        for chunk in state["retrieved"]
+        chunk.text for chunk in state["retrieved"]
     )
 
     rewritten_query = rewriter.rewrite(

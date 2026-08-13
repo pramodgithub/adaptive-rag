@@ -10,10 +10,7 @@ class RetrievalEvaluator:
     RETRY_THRESHOLD = 0.40
 
     @trace
-    def evaluate(
-        self,
-        results: list[RetrievalResult]
-    ) -> RetrievalEvaluation:
+    def evaluate(self, results: list[RetrievalResult]) -> RetrievalEvaluation:
 
         if not results:
             mlflow.log_metric("retrieval_confidence", 0)
