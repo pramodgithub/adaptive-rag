@@ -27,6 +27,8 @@ services:
       - ./config:/app/config
       - ./services:/app/services
       - ./tests:/app/tests
+      - ingestion_storage:/documents
+      - ingestion_storage:/processed
     restart: unless-stopped
 
   worker:
@@ -34,6 +36,11 @@ services:
       context: .
       dockerfile: infra/docker/worker/Dockerfile
     container_name: rag-worker
+    command: >
+      celery
+      -A apps.worker.celery_app:celery
+      worker
+      --loglevel=info
     environment:
       - PYTHONPATH=/app
     env_file:
@@ -41,8 +48,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - ./apps:/app/apps          # ← only mount source code
+      - ./apps:/app/apps
+      - ./tests:/app/tests
+      - ingestion_storage:/documents
+      - ingestion_storage:/processed
     restart: unless-stopped
 
   postgres:
@@ -69,6 +81,12 @@ services:
     container_name: rag-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     restart: unless-stopped
 
   neo4j:
@@ -81,6 +99,15 @@ services:
       - "7687:7687"
     volumes:
       - neo4j_data:/data
+    restart: unless-stopped
+
+  adminer:
+    image: adminer
+    container_name: rag-adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
     restart: unless-stopped
 
   mlflow:
@@ -98,3 +125,4 @@ services:
 volumes:
   postgres_data:
   neo4j_data:
+  ingestion_storage:

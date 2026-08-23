@@ -54,7 +54,8 @@ class IngestionJob(Base):
     execution_id = Column(
         UUID(as_uuid=True),
         nullable=False,
-        default=uuid.uuid4
+        default=uuid.uuid4,
+
     )
 
     started_at = Column(
@@ -79,4 +80,5 @@ class IngestionJob(Base):
 __table_args__ = (
     Index("idx_ingestion_job_version", "document_version_id"),
     Index("idx_ingestion_job_status", "status"),
+    Index("idx_ingestion_execution_id", "execution_id")
 )

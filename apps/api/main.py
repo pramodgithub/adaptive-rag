@@ -26,24 +26,11 @@ def health():
     }
 
 
-@app.post("/upload")
+@app.post("/upload", status_code=202)
 async def upload_document(
     file: UploadFile = File(...)
 ):
-
-    content = await file.read()
-
-    text = content.decode(
-        "utf-8"
-    )
-
-    result = ingestion_service.ingest(
-
-        text=text,
-        filename=file.filename
-    )
-
-    return result
+    return await ingestion_service.create_ingestion(file)
 
 
 @app.get("/search")

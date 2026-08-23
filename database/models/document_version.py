@@ -56,6 +56,11 @@ class DocumentVersion(Base):
         nullable=False
     )
 
+    parsed_text_path = Column(
+        String(500),
+        nullable=True
+    )
+
     mime_type = Column(
         String(100)
     )
@@ -97,8 +102,10 @@ class DocumentVersion(Base):
 
     document = relationship(
         "Document",
-        back_populates="versions"
+        back_populates="versions",
+        foreign_keys=[document_id]
     )
+
     chunks = relationship(
         "Chunk",
         back_populates="document_version",

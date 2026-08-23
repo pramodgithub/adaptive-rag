@@ -48,7 +48,7 @@ class Chunk(Base):
 
     embedding = Column(
         Vector(EMBEDDING_DIMENSION),
-        nullable=False
+        nullable=True
     )
 
     document_version = relationship(

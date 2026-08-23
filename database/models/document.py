@@ -77,6 +77,7 @@ class Document(Base):
     versions = relationship(
         "DocumentVersion",
         back_populates="document",
+        foreign_keys="DocumentVersion.document_id",
         cascade="all, delete-orphan",
         order_by="DocumentVersion.version"
     )
