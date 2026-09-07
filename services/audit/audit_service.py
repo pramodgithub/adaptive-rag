@@ -5,31 +5,31 @@ from database.session import SessionLocal
 
 
 class AuditService:
+
     @trace
     def save(
         self,
         query: str,
+        final_query: str,
         answer: str,
-        retrieval: dict,
+        retrieval_confidence: float,
+        retry_count: int,
         metadata: dict,
-        sources: list[str]
+        sources: list[str],
     ):
-
         with SessionLocal() as db:
-
             audit = AuditLog(
                 query=query,
-                final_query=retrieval["final_query"],
+                final_query=final_query,
                 answer=answer,
-                confidence=retrieval["confidence"],
-                retry_count=retrieval["retry_count"],
+                confidence=retrieval_confidence,
+                retry_count=retry_count,
                 model=metadata["model"],
                 provider=metadata["provider"],
                 latency_ms=metadata["latency_ms"],
                 total_tokens=metadata["total_tokens"],
-                sources=sources
+                sources=sources,
             )
 
             db.add(audit)
-
             db.commit()

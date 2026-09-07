@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, Integer, Boolean
 from sqlalchemy import JSON
 from sqlalchemy import Enum
 from sqlalchemy import ForeignKey
-from sqlalchemy import DateTime, func
+from sqlalchemy import DateTime, Date, func
 from sqlalchemy.dialects.postgresql import UUID
 from enums.processing_status import ProcessingStatus
 from sqlalchemy.orm import relationship
@@ -81,6 +81,46 @@ class DocumentVersion(Base):
         Enum(ProcessingStatus, native_enum=False, validate_strings=True),
         default=ProcessingStatus.UPLOADING,
         nullable=False,
+    )
+
+    source_type = Column(
+        String(100),
+        nullable=True,
+    )
+
+    issuer = Column(
+        String(255),
+        nullable=True,
+    )
+
+    jurisdiction = Column(
+        String(100),
+        nullable=True,
+    )
+
+    authority_level = Column(
+        String(50),
+        nullable=True,
+    )
+
+    publication_date = Column(
+        Date,
+        nullable=True,
+    )
+
+    effective_date = Column(
+        Date,
+        nullable=True,
+    )
+
+    expiration_date = Column(
+        Date,
+        nullable=True,
+    )
+
+    verification_status = Column(
+        String(50),
+        nullable=True,
     )
 
     chunk_count = Column(

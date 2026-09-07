@@ -1,0 +1,260 @@
+{
+  "name": "Vector Retrieval Baseline v1",
+  "description": "Deterministic retrieval evaluation cases for the SOC 2 RAG baseline. Expected evidence is defined by stable evidence identity, primarily page_number and chunk_index, rather than exact similarity scores.",
+  "version": "1.0.0",
+  "top_k": 5,
+  "match_policy": {
+    "primary": "evidence_identity",
+    "evidence_identity_fields": [
+      "page_number",
+      "chunk_index"
+    ],
+    "secondary": [
+      "control_ids",
+      "keywords"
+    ],
+    "score_policy": "Scores are diagnostic only and must not be used for pass/fail assertions."
+  },
+  "cases": [
+    {
+      "id": "access-management",
+      "query": "What are the organization's controls for access management?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 44,
+            "chunk_index": 51,
+            "control_ids": [
+              "CC6.1.4",
+              "CC6.1.5",
+              "CC6.1.6"
+            ],
+            "keywords": [
+              "access management",
+              "access rights"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "administrative-access",
+      "query": "How does the organization restrict administrative access to critical systems?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 44,
+            "chunk_index": 51,
+            "control_ids": [
+              "CC6.1.5"
+            ],
+            "keywords": [
+              "administrative access",
+              "critical systems"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "ssh-access",
+      "query": "How is SSH access to production infrastructure protected?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 44,
+            "chunk_index": 51,
+            "control_ids": [
+              "CC6.1.6"
+            ],
+            "keywords": [
+              "Secure Shell",
+              "SSH",
+              "production infrastructure"
+            ]
+          },
+          {
+            "page_number": 22,
+            "chunk_index": 25,
+            "keywords": [
+              "SSH",
+              "VPN",
+              "remote system administration"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "production-database-access",
+      "query": "What controls restrict access to production databases?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 45,
+            "chunk_index": 52,
+            "control_ids": [
+              "CC6.3.4"
+            ],
+            "keywords": [
+              "production databases",
+              "database access"
+            ]
+          },
+          {
+            "page_number": 44,
+            "chunk_index": 51,
+            "control_ids": [
+              "CC6.1.6"
+            ],
+            "keywords": [
+              "access",
+              "production"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "security-awareness",
+      "query": "What is the organization's employee security awareness training?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 3,
+        "evidence": [
+          {
+            "page_number": 37,
+            "chunk_index": 44,
+            "control_ids": [
+              "CC1.5.1"
+            ],
+            "keywords": [
+              "security awareness training",
+              "employee security awareness"
+            ]
+          },
+          {
+            "page_number": 25,
+            "chunk_index": 29,
+            "keywords": [
+              "Annual Security Awareness Training",
+              "all staff"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "security-training-frequency",
+      "query": "How frequently is security awareness training provided?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 25,
+            "chunk_index": 29,
+            "control_ids": [
+              "CC1.5.1"
+            ],
+            "keywords": [
+              "Annual Security Awareness Training",
+              "annual",
+              "security awareness training"
+            ],
+            "note": "This case previously failed because the evaluator relied on exact keyword matching. The retrieved evidence identity page 25, chunk 29 is the deterministic pass condition."
+          }
+        ]
+      }
+    },
+    {
+      "id": "logical-access",
+      "query": "How does the organization control logical access?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 28,
+            "chunk_index": 35,
+            "keywords": [
+              "Logical Access Control",
+              "logical access"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "access-review",
+      "query": "How are employee access rights reviewed?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 1,
+        "evidence": [
+          {
+            "page_number": 44,
+            "chunk_index": 51,
+            "control_ids": [
+              "CC6.1.4"
+            ],
+            "keywords": [
+              "access rights",
+              "reviewed"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "remote-administration",
+      "query": "How does the organization protect remote administrative access?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 4,
+        "evidence": [
+          {
+            "page_number": 22,
+            "chunk_index": 25,
+            "keywords": [
+              "remote administrative access",
+              "remote system administration",
+              "SSH",
+              "VPN"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "employee-offboarding",
+      "query": "How does the organization handle access when an employee leaves?",
+      "expected": {
+        "max_rank": 5,
+        "observed_rank": 3,
+        "evidence": [
+          {
+            "page_number": 45,
+            "chunk_index": 52,
+            "control_ids": [
+              "CC6.5"
+            ],
+            "keywords": [
+              "employee leaves",
+              "offboarding",
+              "access"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from core.schemas.evidence import EvidenceMetadata
+from enums.judge_status import JudgeStatus
 
 
 class RetrievalResult(BaseModel):
@@ -13,6 +16,7 @@ class RetrievalResult(BaseModel):
     text: str
     score: float
     source: str
+    evidence: EvidenceMetadata | None = None
 
 
 class RetrievalEvaluation(BaseModel):
@@ -21,9 +25,15 @@ class RetrievalEvaluation(BaseModel):
     reason: str
 
 
-class RetrievalJudgeEvaluation(BaseModel):
+class RetrievalJudgeResult(BaseModel):
+   # status: JudgeStatus
 
     relevant: bool
-    coverage: float
-    confidence: float
+    coverage: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    missing_evidence: list[str] = Field(default_factory=list)
+    contradictions: list[str] = Field(default_factory=list)
+
+    sufficient: bool
     reason: str

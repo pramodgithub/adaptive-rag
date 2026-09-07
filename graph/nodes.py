@@ -1,4 +1,5 @@
 import time
+from apps.rag.state.models import RetrievalEvaluation
 import mlflow
 from core.llm.prompts.retrieval_prompt import build_retrieval_prompt
 
@@ -27,6 +28,7 @@ audit = AuditService()
 
 
 def planner_node(state):
+
     start = time.time()
     strategy = planner.select(state["query"])
     duration = round(time.time() - start, 3)
@@ -42,6 +44,7 @@ def planner_node(state):
 
 def retrieve_node(state):
     start = time.time()
+
     query = (
         state.get("rewritten_query")
         or state["query"]
@@ -51,98 +54,104 @@ def retrieve_node(state):
     retrieved = []
 
     for strategy_name in state["strategies"]:
-
-        retrieval_strategy = (
-            planner.get_strategy(
-                strategy_name
-            )
-        )
-
-        results = (
-            retrieval_strategy.retrieve(
-                query
-            )
-        )
-
+        retrieval_strategy = planner.get_strategy(strategy_name)
+        results = retrieval_strategy.retrieve(query)
         all_results.extend(results)
 
-    retrieved = reranker.rank(
-        all_results
-    )
-    context = "\n\n".join(
-        r.text
-        for r in retrieved
-    )
-
-    judge_evaluation = (
-        judge.evaluate(
-            query,
-            context
-        )
-    )
+    retrieved = reranker.rank(all_results)
 
     duration = round(time.time() - start, 3)
     mlflow.log_metric("retrieve_duration", duration)
+
     return {
         "retrieved": retrieved,
-        "retrieval_judge": judge_evaluation,
         "all_results": all_results,
         "node_metrics": {
             **state.get("node_metrics", {}),
-            "retrieve": duration
-        }
+            "retrieve": duration,
+        },
     }
 
 
 def evaluate_retrieval_node(state):
     start = time.time()
-    evaluation = retrieval_evaluator.evaluate(
-        state["retrieved"]
-    )
 
-    final_query = (
-        state.get("rewritten_query")
-        or state["query"]
+    evaluation = retrieval_evaluator.evaluate(
+        state["retrieved"],
+        state.get("assessment_context"),
     )
 
     duration = round(time.time() - start, 3)
     mlflow.log_metric("evaluate_retrieval_duration", duration)
 
     return {
-        "retrieval": {
-            "final_query": final_query,
-            "confidence": evaluation.confidence,
-            "should_retry": evaluation.should_retry,
-            "reason": evaluation.reason,
-            "retry_count": state["retry_count"]
-        },
+        "retrieval_evaluation": evaluation,
         "node_metrics": {
             **state.get("node_metrics", {}),
-            "evaluate_retrieval": duration
-        }
+            "evaluate_retrieval": duration,
+        },
+    }
+
+
+def judge_retrieval_node(state):
+    start = time.time()
+
+    query = (
+        state.get("rewritten_query")
+        or state["query"]
+    )
+
+    context = "\n\n".join(
+        chunk.text
+        for chunk in state["retrieved"]
+    )
+
+    judgment = judge.evaluate(
+        query=query,
+        context=context,
+    )
+
+    duration = round(time.time() - start, 3)
+    mlflow.log_metric(
+        "judge_retrieval_duration",
+        duration,
+    )
+
+    return {
+        "retrieval_judgment": judgment,
+        "node_metrics": {
+            **state.get("node_metrics", {}),
+            "judge_retrieval": duration,
+        },
     }
 
 
 def rewrite_query_node(state):
     start = time.time()
+
     context = "\n".join(
-        chunk.text for chunk in state["retrieved"]
+        chunk.text
+        for chunk in state["retrieved"]
     )
 
     rewritten_query = rewriter.rewrite(
-        state["query"], context
+        state["query"],
+        context,
     )
 
     duration = round(time.time() - start, 3)
-    mlflow.log_metric("rewrite_query_duration", duration)
+    mlflow.log_metric(
+        "rewrite_query_duration",
+        duration,
+    )
 
     return {
         "rewritten_query": rewritten_query,
-        "retry_count": state["retry_count"] + 1,
+        "retry_count": state.get("retry_count", 0) + 1,
         "node_metrics": {
             **state.get("node_metrics", {}),
-            "rewrite_query": duration
-        }
+            "rewrite_query": duration,
+        },
     }
 
 
@@ -174,7 +183,7 @@ def generate_node(state):
     mlflow.log_metric("generate_duration", duration)
     return {
         "answer": answer,
-        "evaluation": evaluation.model_dump(),
+        "answer_evaluation": evaluation.model_dump(),
         "metadata": metadata,
         "node_metrics": {
             **state.get("node_metrics", {}),
@@ -184,13 +193,34 @@ def generate_node(state):
 
 
 def audit_node(state):
-
     audit.save(
         query=state["query"],
+        final_query=state.get("rewritten_query") or state["query"],
         answer=state["answer"],
-        retrieval=state["retrieval"],
-        metadata=state["metadata"],
-        sources=[x.text for x in state["retrieved"]]
+        retrieval_confidence=state["retrieval_evaluation"].confidence,
+        retry_count=state.get("retry_count", 0),
+        metadata=state.get("metadata", {}),
+        sources=[x.text for x in state["retrieved"]],
+    )
+    return {}
+
+
+def insufficient_evidence_node(state):
+    retrieval = state.get("retrieval_evaluation")
+
+    reason = (
+        retrieval.reason
+        if retrieval
+        else "Retrieval evidence was insufficient."
     )
 
-    return {}
+    return {
+        "answer": (
+            "I don't have sufficient evidence in the available "
+            "documents to answer this question reliably."
+        ),
+        "answer_evaluation": {
+            "status": "insufficient_evidence",
+            "reason": reason,
+        },
+    }

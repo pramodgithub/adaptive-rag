@@ -1,6 +1,7 @@
 from sqlalchemy import text
 
 from core.embeddings.embedding_service import EmbeddingService
+from core.schemas.evidence import EvidenceMetadata
 from core.schemas.retrieval import RetrievalResult
 from database.session import SessionLocal
 from enums.document_status import DocumentStatus
@@ -25,7 +26,15 @@ class RetrievalService:
                 c.chunk_index,
                 c.page_number,
                 d.title,
-                1 - (c.embedding <=> CAST(:embedding AS vector)) AS score
+                1 - (c.embedding <=> CAST(:embedding AS vector)) AS score,
+                dv.source_type,
+                dv.issuer,
+                dv.jurisdiction,
+                dv.authority_level,
+                dv.publication_date,
+                dv.effective_date,
+                dv.expiration_date,
+                dv.verification_status
             FROM chunks c
             JOIN document_versions dv
                 ON dv.id = c.document_version_id
@@ -61,7 +70,17 @@ class RetrievalService:
                 document_title=row.title,
                 text=row.text,
                 score=float(row.score),
-                source="vector"
+                source="vector",
+                evidence=EvidenceMetadata(
+                    source_type=row.source_type,
+                    issuer=row.issuer,
+                    jurisdiction=row.jurisdiction,
+                    authority_level=row.authority_level,
+                    publication_date=row.publication_date,
+                    effective_date=row.effective_date,
+                    expiration_date=row.expiration_date,
+                    verification_status=row.verification_status,
+                ) if row.authority_level else None
             )
             for row in rows
         ]

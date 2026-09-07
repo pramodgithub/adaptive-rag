@@ -1,3 +1,4 @@
+from apps.rag.state.models import AssessmentContext
 import mlflow
 import uuid
 from graph.workflow import graph
@@ -5,7 +6,7 @@ from graph.workflow import graph
 
 class RAGService:
 
-    def ask(self, query: str):
+    def ask(self, query: str, assessment_context: AssessmentContext | None = None):
         execution_id = str(uuid.uuid4())
         with mlflow.start_run():
 
@@ -18,7 +19,8 @@ class RAGService:
                     "query": query,
                     "retry_count": 0,
                     "execution_id": execution_id,
-                    "node_metrics": {}
+                    "node_metrics": {},
+                    "assessment_context": assessment_context,
                 }
             )
 
@@ -81,10 +83,11 @@ class RAGService:
             ],
             "retrieval_stats": {
                 "before_rerank": len(all_results),
-                "after_rerank":  len(retrieved),
+                "after_rerank": len(retrieved),
                 "sources": source_stats
             },
-            "evaluation": result["evaluation"],
+            "retrieval_evaluation": result["retrieval"],
+            "answer_evaluation": result["evaluation"],
             "metadata": result["metadata"],
             "sources": [
                 x.text

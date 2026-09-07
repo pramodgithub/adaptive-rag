@@ -1,4 +1,0 @@
-Kubernetes is an orchestration platform
-for containerized applications.
-
-Pods are the smallest deployable unit.

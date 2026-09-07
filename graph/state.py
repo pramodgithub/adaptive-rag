@@ -1,25 +1,27 @@
 from typing import TypedDict
 
+from apps.rag.state.models import AssessmentContext, RetrievalEvaluation
+from core.schemas.retrieval import RetrievalJudgeResult
 
-class RAGState(TypedDict):
 
+class RAGState(TypedDict, total=False):
     execution_id: str
-
     query: str
-    strategies: list[str]
 
+    strategies: list[str]
     rewritten_query: str
 
     retrieved: list
-    retrieval: dict
+    all_results: list
+
+    retrieval_evaluation: RetrievalEvaluation | None
+    retrieval_judgment: RetrievalJudgeResult | None
 
     answer: str
-    evaluation: dict
+    answer_evaluation: dict | None
+
     metadata: dict
-
     retry_count: int
-
-    retrieval_judge: dict
-
-    all_results: list
     node_metrics: dict
+
+    assessment_context: AssessmentContext | None

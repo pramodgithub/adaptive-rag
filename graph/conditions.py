@@ -1,41 +1,39 @@
-MAX_RETRIES = 2
-
-MIN_COVERAGE = 0.6
-
-
 def should_retry_retrieval(state):
 
-    retrieval = state["retrieval"]
-
-    judge = state["retrieval_judge"]
-
-    retries = state["retry_count"]
-
-    if retries >= MAX_RETRIES:
-        return "generate"
-
-    if retrieval["should_retry"]:
-        return "rewrite"
-
-    if not judge.relevant:
-        return "rewrite"
-
-    if judge.coverage < MIN_COVERAGE:
+    if not state["retrieval"].sufficient:
         return "rewrite"
 
     return "generate"
 
 
-# def should_retry_answer(state) -> str:
-#     eval = state["eval"]
+MAX_RETRIES = 2
+JUDGE_THRESHOLD = 0.50
 
-#     if not eval.should_retry:
-#         return "end"
 
-#     if eval.retry_type == "retrieval":
-#         return "rewrite"       # → goes back to retrieval node
+def should_run_retrieval_judge(state):
+    retrieval = state["retrieval_evaluation"]
+    retry_count = state.get("retry_count", 0)
 
-#     if eval.retry_type == "generation":
-#         return "regenerate"    # → retries generation with better prompt
+    if retrieval.sufficient:
+        return "generate"
 
-#     return "end"
+    if retry_count >= MAX_RETRIES:
+        return "insufficient"
+
+    if retrieval.confidence >= JUDGE_THRESHOLD:
+        return "judge"
+
+    return "rewrite"
+
+
+def should_retry_after_judge(state):
+    judgment = state["retrieval_judgment"]
+    retry_count = state.get("retry_count", 0)
+
+    if judgment.sufficient:
+        return "generate"
+
+    if retry_count >= MAX_RETRIES:
+        return "insufficient"
+
+    return "rewrite"

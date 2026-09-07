@@ -1,30 +1,32 @@
-from unittest import result
-from mlflow import trace
-
+from core.llm.prompts.retrieval_judge_prompt import (
+    build_retrieval_judge_prompt,
+)
 from core.llm.router import ModelRouter
-from core.llm.prompts.retrieval_judge_prompt import build_retrieval_judge_prompt
-from core.schemas.retrieval import RetrievalJudgeEvaluation
-from services.evaluation.parser import EvaluationParser
+from core.schemas.retrieval import RetrievalJudgeResult
+from services.evaluation.retrieval_judge_parser import RetrievalJudgeParser
 
 
 class RetrievalJudge:
 
-    def __init__(self):
+    def __init__(self, llm: ModelRouter | None = None):
+        self.llm = llm or ModelRouter()
 
-        self.llm = ModelRouter()
-
-    @trace
-    def evaluate(self, query: str, context: str) -> RetrievalJudgeEvaluation:
+    def evaluate(
+        self,
+        query: str,
+        context: str,
+    ) -> RetrievalJudgeResult:
 
         prompt = build_retrieval_judge_prompt(
-            query,
-            context
+            query=query,
+            context=context,
         )
 
         result = self.llm.generate_for_node(
-            prompt, node_name="retrieval_judge"
+            prompt,
+            node_name="retrieval_judge",
         )
 
-        return EvaluationParser.parsejudge(
-            result["text"]
+        return RetrievalJudgeParser.parse(
+            result["text"],
         )
