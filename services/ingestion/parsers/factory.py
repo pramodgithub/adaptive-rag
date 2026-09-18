@@ -1,18 +1,19 @@
 from .base import DocumentParser
-from .pdf import PDFParser
+from .docling_parser import DoclingParser
 from .text import TextParser
 
 
 class ParserFactory:
 
     _parsers = {
-        "application/pdf": PDFParser,
+        "application/pdf": DoclingParser,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": DoclingParser,
+        "text/html": DoclingParser,
         "text/plain": TextParser,
     }
 
     @classmethod
     def get_parser(cls, mime_type: str) -> DocumentParser:
-
         parser_class = cls._parsers.get(mime_type)
 
         if not parser_class:

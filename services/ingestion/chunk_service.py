@@ -1,4 +1,4 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+""" from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class ChunkService:
@@ -15,3 +15,4 @@ class ChunkService:
         return self.splitter.split_text(
             text
         )
+ """

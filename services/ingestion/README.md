@@ -50,6 +50,24 @@
                               │
                               ▼
                              Neo4j
+# Chunking Strategies
+For compliance documents, semantic boundaries matter more than an arbitrary character count.
+                             
+Structure-aware splitting
+        ↓
+respect headings
+        ↓
+respect paragraphs
+        ↓
+respect lists
+        ↓
+respect tables
+        ↓
+preserve section context
+        ↓
+size constraint
+        ↓
+final chunks
 
 ### PostgreSQL
     Keep as the system of record for:

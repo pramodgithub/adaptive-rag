@@ -45,7 +45,7 @@ class IngestionService:
             document_version = DocumentVersion(
                 document_id=document.id,
                 version=1,
-                is_active=True,
+                is_active=False,
                 storage_path=storage_path,
                 checksum=checksum,
                 file_name=file.filename,
@@ -56,7 +56,7 @@ class IngestionService:
             db.add(document_version)
             db.flush()
 
-            document.active_version_id = document_version.id
+           # document.active_version_id = document_version.id
 
             job = IngestionJob(
                 document_version_id=document_version.id

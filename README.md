@@ -130,6 +130,44 @@ LangGraph Planner
                      └──────────────┼──────────────┘
                                     ▼
                               Drift Monitor
+
+
+## COMPLIANCE PLATFORM ARCHITECTURE
+
+                         COMPLIANCE PLATFORM
+                                │
+        ┌───────────────────────┼────────────────────────┐
+        │                       │                        │
+        ▼                       ▼                        ▼
+   Knowledge Layer         Intelligence Layer       Control Plane
+        │                       │                        │
+   PostgreSQL                LangGraph               Governance
+   Docling                   Vector RAG              Policies
+   Neo4j                     GraphRAG                Models
+   pgvector                  Agentic RAG              Prompts
+   Documents                 Evaluation               Versions
+        │                       │                        │
+        └───────────────────────┼────────────────────────┘
+                                │
+                                ▼
+                       Assessment Engine
+                                │
+                                ▼
+                         Evidence Engine
+                                │
+                                ▼
+                         Risk / Gap Engine
+                                │
+                                ▼
+                       Report Generation
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                 ▼                 ▼
+           PDF Report       Dashboard          Audit
+                                │
+                                ▼
+                       Observability / Drift
+
 ---
 
 ## System Flow

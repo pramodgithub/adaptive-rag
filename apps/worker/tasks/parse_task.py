@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from database.session import SessionLocal
 
 from database.models.document_version import DocumentVersion
@@ -15,12 +17,10 @@ from enums.processing_status import ProcessingStatus
     name="ingestion.parse_document"
 )
 def parse_document(context):
-
     db = SessionLocal()
     storage = FileStorage()
 
     try:
-
         document_version = db.get(
             DocumentVersion,
             context["document_version_id"]
@@ -32,18 +32,17 @@ def parse_document(context):
         )
 
         if not document_version:
-            raise ValueError(
-                "Document version not found"
-            )
+            raise ValueError("Document version not found")
 
         if not job:
-            raise ValueError(
-                "Ingestion job not found"
-            )
+            raise ValueError("Ingestion job not found")
 
         job.status = JobStatus.PROCESSING
-        document_version.processing_status = ProcessingStatus.PROCESSING
 
+        if job.started_at is None:
+            job.started_at = datetime.now(timezone.utc)
+
+        document_version.processing_status = ProcessingStatus.PROCESSING
         db.commit()
 
         parser = ParserFactory.get_parser(
@@ -55,14 +54,28 @@ def parse_document(context):
         )
 
         parsed_artifact = {
+            "title": parsed.title,
             "page_count": parsed.page_count,
-            "pages": [
+            "metadata": parsed.metadata,
+            "elements": [
                 {
-                    "page_number": page.page_number,
-                    "text": page.text
+                    "element_type": element.element_type.value,
+                    "text": element.text,
+                    "page_start": element.page_start,
+                    "page_end": element.page_end,
+                    "section_path": element.section_path,
+                    "metadata": element.metadata,
+                    "table": (
+                        {
+                            "headers": element.table.headers,
+                            "rows": element.table.rows,
+                        }
+                        if element.table
+                        else None
+                    ),
                 }
-                for page in parsed.pages
-            ]
+                for element in parsed.elements
+            ],
         }
 
         parsed_text_path = storage.save_json(
@@ -70,9 +83,7 @@ def parse_document(context):
             document_version.file_name
         )
 
-        document_version.parsed_text_path = (
-            parsed_text_path
-        )
+        document_version.parsed_text_path = parsed_text_path
 
         db.commit()
 
@@ -83,7 +94,6 @@ def parse_document(context):
         }
 
     except Exception as exc:
-
         db.rollback()
 
         job = db.get(
@@ -92,7 +102,7 @@ def parse_document(context):
         )
 
         if job:
-            job.status = "FAILED"
+            job.status = JobStatus.FAILED
             job.error_message = str(exc)
 
         document_version = db.get(
@@ -101,7 +111,7 @@ def parse_document(context):
         )
 
         if document_version:
-            document_version.processing_status = "FAILED"
+            document_version.processing_status = ProcessingStatus.FAILED
 
         db.commit()
 

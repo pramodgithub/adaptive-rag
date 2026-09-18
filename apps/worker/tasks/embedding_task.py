@@ -1,14 +1,18 @@
+from datetime import datetime, timezone
 import logging
 
 from database.session import SessionLocal
 from database.models.chunk import Chunk
+from database.models.document import Document
 from database.models.document_version import DocumentVersion
 from database.models.ingestion_job import IngestionJob
-from enums.job_status import JobStatus
-from core.embeddings.embedding_service import EmbeddingService
 
-from apps.worker.celery_app import celery
+from enums.job_status import JobStatus
 from enums.processing_status import ProcessingStatus
+
+from core.embeddings.embedding_service import EmbeddingService
+from apps.worker.celery_app import celery
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +26,7 @@ def embed_document(context: dict):
 
     logger.info(
         "Embedding document version: %s",
-        document_version_id
+        document_version_id,
     )
 
     db = SessionLocal()
@@ -31,12 +35,12 @@ def embed_document(context: dict):
     try:
         document_version = db.get(
             DocumentVersion,
-            document_version_id
+            document_version_id,
         )
 
         job = db.get(
             IngestionJob,
-            job_id
+            job_id,
         )
 
         if not document_version:
@@ -45,11 +49,21 @@ def embed_document(context: dict):
         if not job:
             raise ValueError("Ingestion job not found")
 
+        document = db.get(
+            Document,
+            document_version.document_id,
+        )
+
+        if not document:
+            raise ValueError(
+                f"Document not found: {document_version.document_id}"
+            )
+
         chunks = (
             db.query(Chunk)
             .filter(
                 Chunk.document_version_id == document_version_id,
-                Chunk.embedding.is_(None)
+                Chunk.embedding.is_(None),
             )
             .order_by(Chunk.chunk_index)
             .all()
@@ -57,21 +71,24 @@ def embed_document(context: dict):
 
         logger.info(
             "Found %s chunks requiring embeddings",
-            len(chunks)
+            len(chunks),
         )
 
         total_chunks = len(chunks)
 
         if not total_chunks:
+            document.active_version_id = document_version.id
             document_version.processing_status = ProcessingStatus.READY
             job.progress = 100
             job.status = JobStatus.COMPLETED
+            job.completed_at = datetime.now(timezone.utc)
+
             db.commit()
 
             return {
                 **context,
                 "embedded_count": 0,
-                "status": ProcessingStatus.READY.value
+                "status": ProcessingStatus.READY.value,
             }
 
         embedded_count = 0
@@ -83,7 +100,7 @@ def embed_document(context: dict):
                 "Embedding batch: %s-%s of %s",
                 start + 1,
                 start + len(batch),
-                total_chunks
+                total_chunks,
             )
 
             texts = [chunk.text for chunk in batch]
@@ -112,24 +129,30 @@ def embed_document(context: dict):
 
         if embedded_count != total_chunks:
             raise RuntimeError(
-                f"Embedding incomplete: {embedded_count}/{total_chunks}"
+                f"Embedding incomplete: "
+                f"{embedded_count}/{total_chunks}"
             )
+
+        # The complete ingestion pipeline has succeeded.
+        # Only now make this version the active version.
+        document.active_version_id = document_version.id
 
         document_version.processing_status = ProcessingStatus.READY
         job.progress = 100
         job.status = JobStatus.COMPLETED
+        job.completed_at = datetime.now(timezone.utc)
 
         db.commit()
 
         logger.info(
-            "Document version %s is READY",
-            document_version_id
+            "Document version %s is READY and active",
+            document_version_id,
         )
 
         return {
             **context,
             "embedded_count": embedded_count,
-            "status": ProcessingStatus.READY.value
+            "status": ProcessingStatus.READY.value,
         }
 
     except Exception as exc:
@@ -137,12 +160,12 @@ def embed_document(context: dict):
 
         document_version = db.get(
             DocumentVersion,
-            document_version_id
+            document_version_id,
         )
 
         job = db.get(
             IngestionJob,
-            job_id
+            job_id,
         )
 
         if document_version:
@@ -151,12 +174,13 @@ def embed_document(context: dict):
         if job:
             job.status = JobStatus.FAILED
             job.error_message = str(exc)
+            job.completed_at = datetime.now(timezone.utc)
 
         db.commit()
 
         logger.exception(
             "Embedding failed for document version: %s",
-            document_version_id
+            document_version_id,
         )
 
         raise

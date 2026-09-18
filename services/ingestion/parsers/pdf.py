@@ -1,4 +1,4 @@
-from pypdf import PdfReader
+
 
 from .base import (
     DocumentParser,
