@@ -28,7 +28,10 @@ class GenericStructureStrategy(StructureStrategy):
                 source="generic.heading",
             )
 
-        if current_path:
+        if (
+            element.element_type != ElementType.TABLE
+            and current_path
+        ):
             return InferredStructure(
                 section_path=list(current_path),
                 confidence=0.5,

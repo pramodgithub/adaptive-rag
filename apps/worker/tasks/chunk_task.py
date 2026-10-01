@@ -9,6 +9,7 @@ from database.session import SessionLocal
 from enums.job_status import JobStatus
 
 from services.ingestion.domain.serialization import document_from_dict
+from services.ingestion.parsers.chunk_candidate import ChunkCandidate
 from services.ingestion.structure.structure_inference import (
     StructureInferenceService,
 )
@@ -155,6 +156,17 @@ def chunk_document(context: dict):
 
         document = document_from_dict(parsed)
 
+        candidates = [
+            ChunkCandidate(
+                text=item["text"],
+                source_refs=item.get("source_refs", []),
+                page_start=item.get("page_start"),
+                page_end=item.get("page_end"),
+                headings=item.get("headings", []),
+            )
+            for item in parsed.get("chunk_candidates", [])
+        ]
+
         logger.info(
             "Loaded canonical document: title=%s elements=%s pages=%s",
             document.title,
@@ -167,11 +179,12 @@ def chunk_document(context: dict):
         )
 
         chunks = chunker.chunk(
-            structured_document
+            structured_document,
+            candidates,
         )
 
         logger.info(
-            "Generated %s compliance chunks for document version %s",
+            "Generated %s document chunks for document version %s",
             len(chunks),
             document_version_id,
         )

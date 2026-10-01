@@ -5,6 +5,7 @@ from database.session import SessionLocal
 from database.models.document_version import DocumentVersion
 from database.models.ingestion_job import IngestionJob
 
+from services.ingestion.domain.serialization import document_to_dict
 from services.storage.file_storage import FileStorage
 from services.ingestion.parsers.factory import ParserFactory
 
@@ -53,10 +54,12 @@ def parse_document(context):
             document_version.storage_path
         )
 
+        canonical = parsed.canonical
+
         parsed_artifact = {
-            "title": parsed.title,
-            "page_count": parsed.page_count,
-            "metadata": parsed.metadata,
+            "title": canonical.title,
+            "page_count": canonical.page_count,
+            "metadata": canonical.metadata,
             "elements": [
                 {
                     "element_type": element.element_type.value,
@@ -74,7 +77,17 @@ def parse_document(context):
                         else None
                     ),
                 }
-                for element in parsed.elements
+                for element in canonical.elements
+            ],
+            "chunk_candidates": [
+                {
+                    "text": candidate.text,
+                    "source_refs": candidate.source_refs,
+                    "page_start": candidate.page_start,
+                    "page_end": candidate.page_end,
+                    "headings": candidate.headings,
+                }
+                for candidate in parsed.chunk_candidates
             ],
         }
 
@@ -90,7 +103,7 @@ def parse_document(context):
         return {
             **context,
             "parsed_text_path": parsed_text_path,
-            "page_count": parsed.page_count
+            "page_count": canonical.page_count,
         }
 
     except Exception as exc:

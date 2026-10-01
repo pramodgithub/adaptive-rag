@@ -4,3 +4,4 @@ from database.models.document_version import DocumentVersion
 from database.models.chunk import Chunk
 from database.models.ingestion_job import IngestionJob
 from database.models.audit import AuditLog
+from database.models.chunk_semantic_entity import ChunkSemanticEntity

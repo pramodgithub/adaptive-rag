@@ -97,6 +97,13 @@ class Chunk(Base):
         back_populates="chunks",
     )
 
+    semantic_entities = relationship(
+        "ChunkSemanticEntity",
+        back_populates="chunk",
+        cascade="all, delete-orphan",
+        order_by="ChunkSemanticEntity.identifier",
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "document_version_id",

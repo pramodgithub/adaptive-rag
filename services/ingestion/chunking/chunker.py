@@ -1,18 +1,20 @@
 from services.ingestion.domain.document import CanonicalDocument
 from services.ingestion.domain.elements import DocumentElement
+from services.ingestion.parsers.chunk_candidate import ChunkCandidate
+
+from .models import DocumentChunk
+from .splitter import ChunkSizeSplitter
+
+
+from services.ingestion.domain.document import CanonicalDocument
+from services.ingestion.domain.elements import DocumentElement
+from services.ingestion.parsers.chunk_candidate import ChunkCandidate
 
 from .models import DocumentChunk
 from .splitter import ChunkSizeSplitter
 
 
 class ComplianceChunker:
-    BOUNDARY_TYPES = {
-        "control",
-        "control_enhancement",
-        "article",
-        "recital",
-    }
-
     def __init__(
         self,
         splitter: ChunkSizeSplitter | None = None,
@@ -22,106 +24,96 @@ class ComplianceChunker:
     def chunk(
         self,
         document: CanonicalDocument,
+        candidates: list[ChunkCandidate],
     ) -> list[DocumentChunk]:
-        semantic_chunks = self._build_semantic_chunks(document)
+        ref_to_index = {
+            element.metadata.get("source_ref"): index
+            for index, element in enumerate(document.elements)
+            if element.metadata.get("source_ref")
+        }
 
-        chunks: list[DocumentChunk] = []
+        chunks = [
+            self._build_chunk(
+                document=document,
+                candidate=candidate,
+                chunk_index=index,
+                ref_to_index=ref_to_index,
+            )
+            for index, candidate in enumerate(candidates)
+        ]
 
-        for semantic_chunk in semantic_chunks:
-            chunks.extend(
-                self.splitter.split(semantic_chunk)
+        final_chunks: list[DocumentChunk] = []
+
+        for chunk in chunks:
+            final_chunks.extend(
+                self.splitter.split(chunk)
             )
 
-        for index, chunk in enumerate(chunks):
+        for index, chunk in enumerate(final_chunks):
             chunk.chunk_index = index
 
-        return chunks
-
-    def _build_semantic_chunks(
-        self,
-        document: CanonicalDocument,
-    ) -> list[DocumentChunk]:
-        chunks: list[DocumentChunk] = []
-        current_elements: list[tuple[int, DocumentElement]] = []
-
-        for index, element in enumerate(document.elements):
-            if self._is_boundary(element) and current_elements:
-                chunks.append(
-                    self._build_chunk(
-                        chunk_index=len(chunks),
-                        elements=current_elements,
-                    )
-                )
-                current_elements = []
-
-            if element.text.strip():
-                current_elements.append(
-                    (index, element)
-                )
-
-        if current_elements:
-            chunks.append(
-                self._build_chunk(
-                    chunk_index=len(chunks),
-                    elements=current_elements,
-                )
-            )
-
-        return chunks
-
-    def _is_boundary(
-        self,
-        element: DocumentElement,
-    ) -> bool:
-        structure = element.metadata.get("structure", {})
-
-        return (
-            structure.get("structure_type")
-            in self.BOUNDARY_TYPES
-        )
+        return final_chunks
 
     def _build_chunk(
         self,
+        document: CanonicalDocument,
+        candidate: ChunkCandidate,
         chunk_index: int,
-        elements: list[tuple[int, DocumentElement]],
+        ref_to_index: dict[str, int],
     ) -> DocumentChunk:
-        indexes = [index for index, _ in elements]
-        source_elements = [element for _, element in elements]
+        element_indexes = [
+            ref_to_index[ref]
+            for ref in candidate.source_refs
+            if ref in ref_to_index
+        ]
 
-        first = source_elements[0]
-        structure = first.metadata.get("structure", {})
+        source_elements = [
+            document.elements[index]
+            for index in element_indexes
+        ]
 
-        text = "\n\n".join(
-            element.text
-            for element in source_elements
-            if element.text.strip()
+        structure = self._resolve_structure(
+            source_elements
         )
 
         return DocumentChunk(
             chunk_index=chunk_index,
-            text=text,
-            page_start=min(
-                (
-                    element.page_start
-                    for element in source_elements
-                    if element.page_start is not None
-                ),
-                default=None,
+            text=candidate.text,
+            page_start=candidate.page_start,
+            page_end=candidate.page_end,
+            section_path=self._resolve_section_path(
+                source_elements
             ),
-            page_end=max(
-                (
-                    element.page_end
-                    for element in source_elements
-                    if element.page_end is not None
-                ),
-                default=None,
-            ),
-            section_path=list(first.section_path),
             structure_type=structure.get("structure_type"),
             identifier=structure.get("identifier"),
-            parent_identifier=structure.get("parent_identifier"),
-            element_indexes=indexes,
+            parent_identifier=structure.get(
+                "parent_identifier"
+            ),
+            element_indexes=element_indexes,
             metadata={
-                "source": "canonical_document",
+                "source": "hybrid_chunker",
+                "headings": candidate.headings,
             },
         )
+
+    @staticmethod
+    def _resolve_structure(
+        elements: list[DocumentElement],
+    ) -> dict:
+        for element in elements:
+            structure = element.metadata.get("structure")
+
+            if structure:
+                return structure
+
+        return {}
+
+    @staticmethod
+    def _resolve_section_path(
+        elements: list[DocumentElement],
+    ) -> list[str]:
+        for element in elements:
+            if element.section_path:
+                return list(element.section_path)
+
+        return []

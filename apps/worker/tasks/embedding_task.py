@@ -138,8 +138,8 @@ def embed_document(context: dict):
         document.active_version_id = document_version.id
 
         document_version.processing_status = ProcessingStatus.READY
-        job.progress = 100
-        job.status = JobStatus.COMPLETED
+        job.progress = 75
+        job.status = JobStatus.GRAPH_BUILD
         job.completed_at = datetime.now(timezone.utc)
 
         db.commit()
@@ -152,7 +152,7 @@ def embed_document(context: dict):
         return {
             **context,
             "embedded_count": embedded_count,
-            "status": ProcessingStatus.READY.value,
+            "status": ProcessingStatus.EMBEDDED.value,
         }
 
     except Exception as exc:

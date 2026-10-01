@@ -7,3 +7,4 @@ class ProcessingStatus(str, Enum):
     PROCESSING = "PROCESSING"
     READY = "READY"
     FAILED = "FAILED"
+    EMBEDDED = "EMBEDDED"

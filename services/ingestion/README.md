@@ -31,6 +31,7 @@
                        ▼
                   PostgreSQL
 
+## Generic document structure + generic chunking + framework detection + LLM-based semantic extraction + deterministic validation.
 
 ## Docling → Knowledge Graph Architecture
 

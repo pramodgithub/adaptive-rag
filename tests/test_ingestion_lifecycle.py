@@ -2,6 +2,7 @@ import os
 import uuid
 from unittest.mock import patch
 
+from apps.worker.tasks.chunk_task import chunk_document
 from database.models.chunk import Chunk
 from database.models.document import Document
 from database.models.document_version import DocumentVersion
@@ -13,10 +14,12 @@ from enums.processing_status import ProcessingStatus
 
 from apps.worker.celery_app import celery
 from apps.worker.tasks.pipeline import start_ingestion
+from services.retrieval.retrieval_service import RetrievalService
 
 
 PDF_PATH = "/app/tests/data/CELEX_32016R0679_EN_TXT.pdf"
 EMBEDDING_DIMENSION = 1536
+EXPECTED_CHUNK_COUNT = 320
 
 
 def fake_embed(texts):
@@ -159,6 +162,17 @@ def test_ingestion_lifecycle():
 
         db.expire_all()
 
+        chunks = (
+            db.query(Chunk)
+            .filter(
+                Chunk.document_version_id == document_version.id
+            )
+            .order_by(Chunk.chunk_index)
+            .all()
+        )
+
+        assert len(chunks) == EXPECTED_CHUNK_COUNT
+
         document = db.get(
             Document,
             document.id,
@@ -172,15 +186,6 @@ def test_ingestion_lifecycle():
         job = db.get(
             IngestionJob,
             job.id,
-        )
-
-        chunks = (
-            db.query(Chunk)
-            .filter(
-                Chunk.document_version_id == document_version.id
-            )
-            .order_by(Chunk.chunk_index)
-            .all()
         )
 
         # ---------------------------------------------------------
@@ -267,17 +272,44 @@ def test_ingestion_lifecycle():
             == ProcessingStatus.READY
         )
 
-        assert document_version.chunk_count == 180
+        assert document_version.chunk_count == EXPECTED_CHUNK_COUNT
 
         # ---------------------------------------------------------
         # 12. CHUNK STATE
         # ---------------------------------------------------------
 
-        assert len(chunks) == 180
+        assert len(chunks) == EXPECTED_CHUNK_COUNT
 
-        assert embedded_count == 180
+        assert embedded_count == EXPECTED_CHUNK_COUNT
         assert missing_count == 0
 
+        # ---------------------------------------------------------
+        # 12A. CHUNK PERSISTENCE / PROVENANCE
+        # ---------------------------------------------------------
+
+        for index, chunk in enumerate(chunks):
+            assert chunk.chunk_index == index
+            assert chunk.text.strip()
+            assert chunk.page_start is not None
+
+            assert chunk.chunk_metadata is not None
+            assert chunk.chunk_metadata.get("source") == "hybrid_chunker"
+
+            assert isinstance(
+                chunk.chunk_metadata.get("headings", []),
+                list,
+            )
+
+        # ---------------------------------------------------------
+        # 12B. RE-RUN CHUNK PERSISTENCE
+        # ---------------------------------------------------------
+
+        chunk_result = chunk_document.run(context)
+
+        assert chunk_result["chunk_count"] == EXPECTED_CHUNK_COUNT
+        assert chunk_result["inserted"] == 0
+        assert chunk_result["deleted"] == 0
+        assert chunk_result["updated"] == EXPECTED_CHUNK_COUNT
         # ---------------------------------------------------------
         # 13. EMBEDDING DIMENSION
         # ---------------------------------------------------------
@@ -335,6 +367,186 @@ def test_ingestion_lifecycle():
         print("  started_at:", job.started_at)
         print("  completed_at:", job.completed_at)
 
+        # ---------------------------------------------------------
+        # 17. MODIFY PARSED ARTIFACT
+        # ---------------------------------------------------------
+
+        import json
+
+        with open(
+            document_version.parsed_text_path,
+            "r",
+            encoding="utf-8",
+        ) as file:
+            parsed_artifact = json.load(file)
+
+        modified_index = 10
+
+        original_candidate_text = parsed_artifact[
+            "chunk_candidates"
+        ][modified_index]["text"]
+
+        parsed_artifact[
+            "chunk_candidates"
+        ][modified_index]["text"] = (
+            original_candidate_text
+            + "\n\nPersistence validation marker."
+        )
+
+        with open(
+            document_version.parsed_text_path,
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                parsed_artifact,
+                file,
+                ensure_ascii=False,
+                indent=2,
+            )
+
+        # ---------------------------------------------------------
+        # 18. RE-RUN CHUNKING
+        # ---------------------------------------------------------
+
+        chunk_result = chunk_document.run(context)
+
+        assert chunk_result["chunk_count"] == 320
+        assert chunk_result["inserted"] == 0
+        assert chunk_result["deleted"] == 0
+        assert chunk_result["updated"] == 320
+
+        db.expire_all()
+
+        chunks = (
+            db.query(Chunk)
+            .filter(
+                Chunk.document_version_id == document_version.id
+            )
+            .order_by(Chunk.chunk_index)
+            .all()
+        )
+
+        # ---------------------------------------------------------
+        # 19. VERIFY EMBEDDING INVALIDATION
+        # ---------------------------------------------------------
+
+        changed_chunk = chunks[modified_index]
+
+        assert (
+            changed_chunk.text.endswith(
+                "Persistence validation marker."
+            )
+        )
+
+        assert changed_chunk.embedding is None
+
+        unchanged_embeddings = [
+            chunk.embedding
+            for index, chunk in enumerate(chunks)
+            if index != modified_index
+        ]
+
+        assert all(
+            embedding is not None
+            for embedding in unchanged_embeddings
+        )
+
+        # ---------------------------------------------------------
+        # 20. RE-EMBED CHANGED CHUNK
+        # ---------------------------------------------------------
+
+        with patch(
+            "apps.worker.tasks.embedding_task.EmbeddingService"
+        ) as mock_embedding_service:
+            mock_embedding_service.return_value.embed.side_effect = fake_embed
+
+            result = start_ingestion.run(context)
+
+        # ---------------------------------------------------------
+        # 21. RETRIEVAL REGRESSION
+        # ---------------------------------------------------------
+
+        retrieval_service = RetrievalService()
+
+        retrieval_queries = [
+            {
+                "query": "security of processing appropriate technical and organisational measures",
+                "keywords": [
+                    "security",
+                    "technical",
+                    "organisational",
+                    "processing",
+                ],
+            },
+            {
+                "query": "data protection impact assessment",
+                "keywords": [
+                    "impact",
+                    "assessment",
+                    "data protection",
+                ],
+            },
+            {
+                "query": "records of processing activities",
+                "keywords": [
+                    "records",
+                    "processing",
+                    "activities",
+                ],
+            },
+            {
+                "query": "data subject rights access rectification erasure",
+                "keywords": [
+                    "access",
+                    "rectification",
+                    "erasure",
+                    "data subject",
+                ],
+            },
+        ]
+
+        print()
+        print("========== RETRIEVAL REGRESSION ==========")
+
+        for test_case in retrieval_queries:
+            query = test_case["query"]
+            keywords = test_case["keywords"]
+
+            results = retrieval_service.search(
+                query,
+                top_k=5,
+            )
+
+            print()
+            print("Query:", query)
+            print("Results:", len(results))
+
+            assert results
+            assert len(results) <= 5
+
+            for index, result in enumerate(results):
+                print(
+                    f"  [{index}] "
+                    f"score={result.score:.4f} "
+                    f"chunk={result.chunk_index} "
+                    f"page={result.page_number}"
+                )
+
+            retrieved_text = " ".join(
+                result.text.lower()
+                for result in results
+            )
+
+            matched_keywords = [
+                keyword
+                for keyword in keywords
+                if keyword.lower() in retrieved_text
+            ]
+
+            assert matched_keywords, (
+                f"No expected evidence found for query: {query}"
+            )
     finally:
         # ---------------------------------------------------------
         # CLEANUP

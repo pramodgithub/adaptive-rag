@@ -5,19 +5,16 @@ from services.ingestion.structure.gdpr_strategy import GDPRStructureStrategy
 from .generic_strategy import GenericStructureStrategy
 from .models import InferredStructure
 from .nist_strategy import NISTStructureStrategy
+from .soc2_strategy import SOC2StructureStrategy
 from .strategy import StructureStrategy
 
 
 class StructureInferenceService:
     def __init__(
         self,
-        strategies: list[StructureStrategy] | None = None,
+        strategy: StructureStrategy | None = None,
     ):
-        self.strategies = strategies or [
-            NISTStructureStrategy(),
-            GDPRStructureStrategy(),
-            GenericStructureStrategy(),
-        ]
+        self.strategy = strategy or GenericStructureStrategy()
 
     def infer(
         self,
@@ -29,7 +26,7 @@ class StructureInferenceService:
         for element in document.elements:
             previous_elements = elements
 
-            structure = self._infer(
+            structure = self.strategy.infer(
                 element=element,
                 previous_elements=previous_elements,
                 current_path=current_path,
