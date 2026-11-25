@@ -1,11 +1,8 @@
 from services.ingestion.domain.document import CanonicalDocument
-from services.ingestion.domain.elements import DocumentElement
-from services.ingestion.structure.gdpr_strategy import GDPRStructureStrategy
+from services.ingestion.domain.elements import DocumentElement, ElementType
 
 from .generic_strategy import GenericStructureStrategy
 from .models import InferredStructure
-from .nist_strategy import NISTStructureStrategy
-from .soc2_strategy import SOC2StructureStrategy
 from .strategy import StructureStrategy
 
 
@@ -16,30 +13,46 @@ class StructureInferenceService:
     ):
         self.strategy = strategy or GenericStructureStrategy()
 
-    def infer(
-        self,
-        document: CanonicalDocument,
-    ) -> CanonicalDocument:
+    def infer(self, document: CanonicalDocument) -> CanonicalDocument:
         current_path: list[str] = []
+        current_identifier: str | None = None
+        current_parent_identifier: str | None = None
+        current_structure_type: str | None = None
+
         elements: list[DocumentElement] = []
 
         for element in document.elements:
-            previous_elements = elements
-
             structure = self.strategy.infer(
                 element=element,
-                previous_elements=previous_elements,
+                previous_elements=elements,
                 current_path=current_path,
             )
 
-            if structure is not None:
-                current_path = structure.section_path
-
             metadata = dict(element.metadata)
+            existing_structure = metadata.get("structure", {})
+
+            if not isinstance(existing_structure, dict):
+                existing_structure = {}
+            else:
+                existing_structure = dict(existing_structure)
 
             if structure is not None:
-                metadata["structure"] = {
-                    "section_path": structure.section_path,
+                current_path = list(structure.section_path)
+
+                # A title starts a new document-level scope.
+                if element.element_type == ElementType.TITLE:
+                    current_identifier = None
+                    current_parent_identifier = None
+                    current_structure_type = None
+
+                # A recognized structural heading establishes a new identity.
+                elif structure.identifier:
+                    current_identifier = structure.identifier
+                    current_parent_identifier = structure.parent_identifier
+                    current_structure_type = structure.structure_type
+
+                inferred_structure = {
+                    "section_path": list(structure.section_path),
                     "confidence": structure.confidence,
                     "source": structure.source,
                     "structure_type": structure.structure_type,
@@ -47,18 +60,48 @@ class StructureInferenceService:
                     "parent_identifier": structure.parent_identifier,
                 }
 
-                section_path = structure.section_path
-            else:
-                metadata["structure"] = {
-                    "section_path": current_path,
-                    "confidence": 0.0,
-                    "source": "none",
-                    "structure_type": None,
-                    "identifier": None,
-                    "parent_identifier": None,
-                }
+                merged_structure = dict(existing_structure)
 
-                section_path = current_path
+                for key, value in inferred_structure.items():
+                    if value is not None:
+                        merged_structure[key] = value
+
+                # Carry the active structural identity onto headings and body
+                # elements that do not establish a new identified structure.
+                if (
+                    element.element_type != ElementType.TITLE
+                    and not structure.identifier
+                    and current_identifier
+                ):
+                    merged_structure["identifier"] = current_identifier
+                    merged_structure["parent_identifier"] = (
+                        current_parent_identifier
+                    )
+                    merged_structure["structure_type"] = current_structure_type
+
+                merged_structure["section_path"] = list(structure.section_path)
+                metadata["structure"] = merged_structure
+                section_path = list(structure.section_path)
+
+            else:
+                merged_structure = dict(existing_structure)
+                merged_structure.setdefault("section_path", list(current_path))
+                merged_structure.setdefault("confidence", 0.0)
+                merged_structure.setdefault("source", "none")
+
+                if current_identifier:
+                    merged_structure["identifier"] = current_identifier
+                    merged_structure["parent_identifier"] = (
+                        current_parent_identifier
+                    )
+                    merged_structure["structure_type"] = current_structure_type
+                else:
+                    merged_structure.setdefault("structure_type", None)
+                    merged_structure.setdefault("identifier", None)
+                    merged_structure.setdefault("parent_identifier", None)
+
+                metadata["structure"] = merged_structure
+                section_path = list(merged_structure["section_path"])
 
             elements.append(
                 DocumentElement(
@@ -66,7 +109,7 @@ class StructureInferenceService:
                     text=element.text,
                     page_start=element.page_start,
                     page_end=element.page_end,
-                    section_path=list(section_path),
+                    section_path=section_path,
                     metadata=metadata,
                     table=element.table,
                 )
@@ -78,22 +121,3 @@ class StructureInferenceService:
             page_count=document.page_count,
             metadata=dict(document.metadata),
         )
-
-    def _infer(
-        self,
-        element: DocumentElement,
-        previous_elements: list[DocumentElement],
-        current_path: list[str],
-    ) -> InferredStructure | None:
-
-        for strategy in self.strategies:
-            result = strategy.infer(
-                element=element,
-                previous_elements=previous_elements,
-                current_path=current_path,
-            )
-
-            if result is not None:
-                return result
-
-        return None

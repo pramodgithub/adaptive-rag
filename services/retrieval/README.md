@@ -43,6 +43,14 @@ Did we retrieve *all* important aspects of the requirement — not just the part
 
 Semantic similarity can be high here while coverage is still poor — the two signals are not interchangeable.
 
+| Query type | Strategy |
+|---|---|
+| Normal document/compliance question | `vector` |
+| Explicit control/entity lookup | `graph` + `vector` |
+| Relationship/dependency question | `graph` + `vector` |
+| Structural/traceability question | `graph` + `vector` |
+| Everything else | `vector` |
+
 ### Authority
 Is the evidence coming from an appropriate source? For compliance reporting, *where* a fact comes from matters as much as what it says.
 

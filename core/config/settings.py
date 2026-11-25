@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     NEO4J_USERNAME: str
     NEO4J_PASSWORD: str
 
+    EMBED_BATCH_SIZE: int
+    EMBED_BATCH_DELAY_SECONDS: int
+    EMBED_MAX_429_RETRIES: int
+
     class Config:
         env_file = ".env"
 

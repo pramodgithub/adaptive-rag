@@ -1,16 +1,23 @@
+from core.config.settings import settings
+from config.constants import EMBEDDING_DIMENSION
 from google import genai
 from google.genai import types
+import re
+import time
+import logging
+from google.genai import errors
 
-from config.constants import EMBEDDING_DIMENSION
-from core.config.settings import settings
+logger = logging.getLogger(__name__)
 
 
 class EmbeddingService:
 
     def __init__(self):
-        self.client = genai.Client(
-            api_key=settings.GEMINI_API_KEY
-        )
+        raw = getattr(settings, "GEMINI_API_KEYS",
+                      "") or settings.GEMINI_API_KEY
+        keys = [k.strip() for k in raw.split(",") if k.strip()]
+        self.clients = [genai.Client(api_key=k) for k in keys]
+        self._key_index = 0
         self.model_name = settings.EMBEDDING_MODEL
 
     def embed(self, texts: str | list[str]) -> list[list[float]]:
@@ -39,14 +46,30 @@ class EmbeddingService:
             for text in texts
         ]
 
-        result = self.client.models.embed_content(
-            model=self.model_name,
-            contents=contents,
-            config=types.EmbedContentConfig(
-                output_dimensionality=EMBEDDING_DIMENSION,
-                task_type="RETRIEVAL_DOCUMENT"
-            )
+        max_retries = settings.EMBED_MAX_429_RETRIES
+        config = types.EmbedContentConfig(
+            output_dimensionality=EMBEDDING_DIMENSION,
+            task_type="RETRIEVAL_DOCUMENT"
         )
+
+        for attempt in range(max_retries + 1):
+            client = self.clients[self._key_index % len(self.clients)]
+            try:
+                result = client.models.embed_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=config,
+                )
+                break
+            except errors.ClientError as e:
+                if e.code != 429 or attempt == max_retries:
+                    raise
+                match = re.search(r"retry in ([\d.]+)s", str(e))
+                wait = float(match.group(1)) + 2 if match else 60
+                logger.warning(
+                    "429 hit, waiting %.0fs (attempt %s)", wait, attempt + 1)
+                self._key_index += 1      # try the next key next time
+                time.sleep(wait)
 
         embeddings = [
             embedding.values

@@ -1,10 +1,9 @@
-from apps.worker.tasks.graph_task import build_graph
 from celery import chain
-
 from apps.worker.celery_app import celery
 from apps.worker.tasks.parse_task import parse_document
 from apps.worker.tasks.chunk_task import chunk_document
 from apps.worker.tasks.embedding_task import embed_document
+from apps.worker.tasks.graph_task import build_graph
 
 
 @celery.task(name="ingestion.start")

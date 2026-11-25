@@ -58,7 +58,25 @@ def retrieve_node(state):
         results = retrieval_strategy.retrieve(query)
         all_results.extend(results)
 
+    print("\n--- BEFORE RERANK ---")
+    for result in all_results:
+        print(
+            f"source={result.source} "
+            f"score={result.score:.4f} "
+            f"chunk={result.chunk_index} "
+            f"page={result.page_number}"
+        )
+
     retrieved = reranker.rank(all_results)
+
+    print("\n--- AFTER RERANK ---")
+    for result in retrieved:
+        print(
+            f"source={result.source} "
+            f"score={result.score:.4f} "
+            f"chunk={result.chunk_index} "
+            f"page={result.page_number}"
+        )
 
     duration = round(time.time() - start, 3)
     mlflow.log_metric("retrieve_duration", duration)

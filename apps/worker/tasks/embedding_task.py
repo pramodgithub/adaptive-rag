@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import logging
 
+from database.models import document_version
 from database.session import SessionLocal
 from database.models.chunk import Chunk
 from database.models.document import Document
@@ -13,10 +14,12 @@ from enums.processing_status import ProcessingStatus
 from core.embeddings.embedding_service import EmbeddingService
 from apps.worker.celery_app import celery
 
+from core.config.settings import settings
+import time
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 50
+BATCH_SIZE = settings.EMBED_BATCH_SIZE
 
 
 @celery.task(name="ingestion.embed_document")
@@ -77,18 +80,16 @@ def embed_document(context: dict):
         total_chunks = len(chunks)
 
         if not total_chunks:
-            document.active_version_id = document_version.id
-            document_version.processing_status = ProcessingStatus.READY
-            job.progress = 100
-            job.status = JobStatus.COMPLETED
-            job.completed_at = datetime.now(timezone.utc)
+            document_version.processing_status = ProcessingStatus.EMBEDDED
+            job.progress = 75
+            job.status = JobStatus.GRAPH_BUILD
 
             db.commit()
 
             return {
                 **context,
                 "embedded_count": 0,
-                "status": ProcessingStatus.READY.value,
+                "status": ProcessingStatus.EMBEDDED.value,
             }
 
         embedded_count = 0
@@ -127,6 +128,9 @@ def embed_document(context: dict):
             job.progress = min(progress, 75)
             db.commit()
 
+            if settings.EMBED_BATCH_DELAY_SECONDS and start + BATCH_SIZE < total_chunks:
+                time.sleep(settings.EMBED_BATCH_DELAY_SECONDS)
+
         if embedded_count != total_chunks:
             raise RuntimeError(
                 f"Embedding incomplete: "
@@ -135,17 +139,15 @@ def embed_document(context: dict):
 
         # The complete ingestion pipeline has succeeded.
         # Only now make this version the active version.
-        document.active_version_id = document_version.id
 
-        document_version.processing_status = ProcessingStatus.READY
+        document_version.processing_status = ProcessingStatus.EMBEDDED
         job.progress = 75
         job.status = JobStatus.GRAPH_BUILD
-        job.completed_at = datetime.now(timezone.utc)
 
         db.commit()
 
         logger.info(
-            "Document version %s is READY and active",
+            "Document version %s is EMBEDDED and ready for graph building",
             document_version_id,
         )
 

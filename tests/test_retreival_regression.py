@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 import uuid
 from unittest.mock import patch
 
@@ -46,37 +47,17 @@ def test_ingestion_lifecycle():
 
         retrieval_queries = [
             {
-                "query": "security of processing appropriate technical and organisational measures",
+                "query": "CC6.1.4",
                 "keywords": [
-                    "security",
-                    "technical",
-                    "organisational",
-                    "processing",
+                    "CC6.1.4"
                 ],
             },
             {
-                "query": "data protection impact assessment",
+                "query": "What requirements are related to CC6.1.4?",
                 "keywords": [
-                    "impact",
-                    "assessment",
-                    "data protection",
-                ],
-            },
-            {
-                "query": "records of processing activities",
-                "keywords": [
-                    "records",
-                    "processing",
-                    "activities",
-                ],
-            },
-            {
-                "query": "data subject rights access rectification erasure",
-                "keywords": [
-                    "access",
-                    "rectification",
-                    "erasure",
-                    "data subject",
+                    "CC6.1.4",
+                    "related",
+                    "requirements"
                 ],
             },
         ]
@@ -122,6 +103,31 @@ def test_ingestion_lifecycle():
             assert matched_keywords, (
                 f"No expected evidence found for query: {query}"
             )
+
+            print("\n========== ADAPTIVE RETRIEVAL ==========")
+            print(f"Query: {query}")
+            print(f"Strategies: {result['strategies']}")
+            print(f"All results: {len(result['all_results'])}")
+            print(f"Retrieved: {len(result['retrieved'])}")
+
+            for i, r in enumerate(result["retrieved"]):
+                print(
+                    f"  [{i}] "
+                    f"source={r.source} "
+                    f"score={r.score:.4f} "
+                    f"chunk={r.chunk_index} "
+                    f"page={r.page_number}"
+                )
+
+            counts = Counter(r.chunk_id for r in result["all_results"])
+            duplicates = {
+                str(chunk_id): count
+                for chunk_id, count in counts.items()
+                if count > 1
+            }
+
+            print(f"Duplicate chunks: {duplicates}")
+
     finally:
         # ---------------------------------------------------------
         # CLEANUP

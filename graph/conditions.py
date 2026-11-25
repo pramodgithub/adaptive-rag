@@ -1,11 +1,3 @@
-def should_retry_retrieval(state):
-
-    if not state["retrieval"].sufficient:
-        return "rewrite"
-
-    return "generate"
-
-
 MAX_RETRIES = 2
 JUDGE_THRESHOLD = 0.50
 

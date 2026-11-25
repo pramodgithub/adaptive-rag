@@ -1,0 +1,11 @@
+\copy
+(SELECT
+    chunk_index,
+    identifier,
+    structure_type,
+    section_path,
+    left(text, 1000)
+FROM chunks
+WHERE text ILIKE '%CC6.1.4%'
+ORDER BY chunk_index)
+TO PROGRAM 'pbcopy' WITH CSV HEADER

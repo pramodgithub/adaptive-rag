@@ -14,9 +14,7 @@ from enums.job_status import JobStatus
 from enums.processing_status import ProcessingStatus
 
 
-@celery.task(
-    name="ingestion.parse_document"
-)
+@celery.task(name="ingestion.parse_document")
 def parse_document(context):
     db = SessionLocal()
     storage = FileStorage()

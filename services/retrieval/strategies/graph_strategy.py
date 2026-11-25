@@ -18,7 +18,7 @@ class GraphStrategy(RetrievalStrategy):
 
         return self._retrieve_related_chunks(query)
 
-    def _retrieve_by_control(self, control_ids: list[str]) -> list[RetrievalResult]:
+    def _retrieve_by_control(self, control_ids):
         cypher = """
         MATCH (d:Document)-[:HAS_VERSION]->(v:DocumentVersion)-[:HAS_CHUNK]->(c:Chunk)
         WHERE c.identifier IN $control_ids

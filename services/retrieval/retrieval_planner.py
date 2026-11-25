@@ -1,69 +1,64 @@
 from mlflow import trace
 
-from services.retrieval.strategies.tool_strategy import ToolStrategy
-from services.retrieval.strategies.vector_strategy import VectorStrategy
-from services.retrieval.strategies.web_strategy import WebStrategy
 from services.retrieval.strategies.graph_strategy import GraphStrategy
+from services.retrieval.strategies.vector_strategy import VectorStrategy
 
 
 class RetrievalPlanner:
 
     def __init__(self):
-
         self.vector = VectorStrategy()
-        self.web = WebStrategy()
         self.graph = GraphStrategy()
-        self.tool = ToolStrategy()
 
     @trace
-    def select(self, query: str):
-
-        strategies = []
-
+    def select(self, query: str) -> list[str]:
         query = query.lower()
 
-        graph_keywords = [
+        graph_signals = [
             "relationship",
-            "connect",
+            "relationships",
+            "related to",
+            "depends on",
             "dependency",
-            "runs"
+            "dependencies",
+            "connected to",
+            "connection",
+            "linked to",
+            "maps to",
+            "mapped to",
+            "traceability",
+            "associated with",
+            "derived from",
+            "runs on",
+            "contains",
+            "part of",
+            "under",
         ]
 
-        web_keywords = [
-            "latest",
-            "today",
-            "current"
-        ]
+        control_lookup = any(
+            token in query
+            for token in [
+                "cc",
+                "control",
+                "requirement",
+                "article",
+                "section",
+            ]
+        )
 
-        tool_keywords = [
-            "pod",
-            "pods",
-            "ec2",
-            "cpu",
-            "instance",
-            "status"
-        ]
+        graph_query = (
+            any(signal in query for signal in graph_signals)
+            or control_lookup
+        )
 
-        if any(x in query for x in tool_keywords):
-            strategies.append("tool")
+        if graph_query:
+            return ["vector", "graph"]
 
-        if any(x in query for x in graph_keywords):
-            strategies.append("graph")
-
-        if any(x in query for x in web_keywords):
-            strategies.append("web")
-
-        if not strategies:
-            strategies.append("vector")
-
-        return strategies
+        return ["vector"]
 
     @trace
     def get_strategy(self, strategy: str):
-
         return {
             "vector": self.vector,
-            "web": self.web,
             "graph": self.graph,
-            "tool": self.tool
         }[strategy]

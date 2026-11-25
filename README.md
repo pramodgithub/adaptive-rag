@@ -189,6 +189,56 @@ Each request goes through the following lifecycle:
 
 ---
 
+## Guardrail sequence
+1. Planning guardrail
+   - deterministic, explainable strategy selection
+   - Vector as semantic baseline
+   - Graph as structural augmentation
+   - no accidental Web/Tool execution
+2. Retrieval guardrail
+   - active/READY documents only
+   - no invalid embeddings
+   - preserve evidence provenance
+   - deterministic result handling
+3. Cross-strategy merge guardrail
+   - never compare incompatible raw scores as though they mean the same thing
+   - deduplicate evidence
+   - preserve source information
+   - no artificial source-weight manipulation
+4. Deterministic evaluation guardrail
+   - relevance, coverage, authority, completeness, consistency
+   - explicit sufficiency policy
+   - conservative failure behavior
+5. LLM judge guardrail
+   - only invoke when deterministic evaluation warrants it
+   - structured output
+   - malformed/invalid judge output must fail safely
+6. Retry guardrail
+   - bounded retries (MAX_RETRIES)
+   - rewritten query must actually drive subsequent retrieval
+   - no retry loops
+7. Generation guardrail
+   - answer only from retrieved evidence
+   - final query/context consistency
+   - insufficient evidence → controlled response
+8. Governance/audit guardrail
+   - execution ID
+   - strategy decisions
+   - retrieval/evaluation metrics
+   - retries
+   - final evidence
+   - model/provider metadata
+9. Regression suite
+   - Vector-only
+   - Vector + Graph
+   - explicit control lookup
+   - weak retrieval
+   - rewrite
+   - judge
+   - max retry
+   - insufficient evidence
+   - duplicate Vector/Graph evidence
+
 ## Tech Stack
 
 | Layer | Technology |
