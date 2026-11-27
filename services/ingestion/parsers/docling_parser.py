@@ -78,6 +78,7 @@ class DoclingParser(DocumentParser):
 
         self._normalize_docling_document(document)
         self._exclude_contents_tables(document)
+        self._exclude_contents_section(document)
         promoted_refs = self._promote_missed_headings(document)
         joined_refs = self._join_number_and_title(document)
         level_source = self._assign_heading_levels(document)
@@ -170,6 +171,37 @@ class DoclingParser(DocumentParser):
 
             if label == "document_index":
                 table.content_layer = ContentLayer.FURNITURE
+
+    _CONTENTS_HEADING = re.compile(
+        r"^\s*(table\s+of\s+)?contents\s*$",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _exclude_contents_section(
+        cls,
+        document: Any,
+    ) -> None:
+        # Docling doesn't always label a contents page. So also treat
+        # everything under a "Contents" / "Table of Contents" heading, up
+        # to the next heading, as a contents page and move it out.
+        in_contents = False
+
+        for item, _ in document.iterate_items():
+            text = (getattr(item, "text", "") or "").strip()
+            is_heading = isinstance(item, SectionHeaderItem)
+
+            if text and len(text) <= 40 and cls._CONTENTS_HEADING.match(text):
+                in_contents = True
+                item.content_layer = ContentLayer.FURNITURE
+                continue
+
+            if is_heading:
+                in_contents = False
+                continue
+
+            if in_contents:
+                item.content_layer = ContentLayer.FURNITURE
 
     # Numbering that starts a section in compliance documents
     # (regulations, standards, audit reports, policies).
@@ -269,8 +301,7 @@ class DoclingParser(DocumentParser):
     ) -> bool:
         # "Article 7", "CHAPTER III", "Section 2" with no title after it.
         text = text.strip().rstrip(".:")
-        match = cls._KEYWORD_NUMBER.match(
-            text) or cls._DOTTED_NUMBER.match(text)
+        match = cls._KEYWORD_NUMBER.match(text) or cls._DOTTED_NUMBER.match(text)
         return bool(match) and match.end() >= len(text)
 
     @classmethod
@@ -343,8 +374,7 @@ class DoclingParser(DocumentParser):
     def _header_rows(
         table: Any,
     ) -> list[int]:
-        cells = getattr(getattr(table, "data", None),
-                        "table_cells", None) or []
+        cells = getattr(getattr(table, "data", None), "table_cells", None) or []
         return sorted({
             row
             for cell in cells

@@ -117,6 +117,16 @@ def embed_document(context: dict):
             for chunk, embedding in zip(batch, embeddings):
                 chunk.embedding = embedding
 
+            # Record which model made these vectors, so a later model change
+            # can't silently mix vectors from two models.
+            if embeddings and document_version.embedding_dimension is None:
+                document_version.embedding_dimension = len(embeddings[0])
+                document_version.embedding_model = (
+                    getattr(embedding_service, "model_name", None)
+                    or getattr(embedding_service, "model", None)
+                    or getattr(settings, "EMBEDDING_MODEL", None)
+                )
+
             db.commit()
 
             embedded_count += len(batch)

@@ -51,11 +51,23 @@ def build_graph(context: dict):
         job.progress = 80
         db.commit()
 
-        graph_service.create_document_graph(
+        graph_counts = graph_service.create_document_graph(
             document,
             document_version,
             chunks,
         )
+
+        # The whole pipeline has succeeded: make this the active version,
+        # and retire any older version of the same document.
+        (
+            db.query(DocumentVersion)
+            .filter(
+                DocumentVersion.document_id == document.id,
+                DocumentVersion.id != document_version.id,
+            )
+            .update({"is_active": False}, synchronize_session=False)
+        )
+        document_version.is_active = True
 
         document.active_version_id = document_version.id
         document_version.processing_status = ProcessingStatus.READY
@@ -66,14 +78,15 @@ def build_graph(context: dict):
         db.commit()
 
         logger.info(
-            "Graph built for document version %s: %s chunks",
+            "Graph built for document version %s: %s",
             document_version_id,
-            len(chunks),
+            graph_counts,
         )
 
         return {
             **context,
-            "graph_nodes": len(chunks) + 2,
+            "graph_nodes": graph_counts["sections"] + graph_counts["chunks"] + 2,
+            "graph": graph_counts,
             "status": "READY",
         }
 
@@ -85,7 +98,13 @@ def build_graph(context: dict):
         if job:
             job.status = JobStatus.FAILED
             job.error_message = str(exc)
-            db.commit()
+
+        failed_version = db.get(DocumentVersion, document_version_id)
+
+        if failed_version:
+            failed_version.processing_status = ProcessingStatus.FAILED
+
+        db.commit()
 
         logger.exception(
             "Graph build failed for document version: %s",

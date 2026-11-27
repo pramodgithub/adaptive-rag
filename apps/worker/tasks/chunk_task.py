@@ -7,6 +7,7 @@ from database.models.document_version import DocumentVersion
 from database.models.ingestion_job import IngestionJob
 from database.session import SessionLocal
 from enums.job_status import JobStatus
+from enums.processing_status import ProcessingStatus
 
 from services.ingestion.domain.serialization import document_from_dict
 from services.ingestion.parsers.chunk_candidate import ChunkCandidate
@@ -256,7 +257,16 @@ def chunk_document(context: dict):
         if job:
             job.status = JobStatus.FAILED
             job.error_message = str(exc)
-            db.commit()
+
+        failed_version = db.get(
+            DocumentVersion,
+            document_version_id,
+        )
+
+        if failed_version:
+            failed_version.processing_status = ProcessingStatus.FAILED
+
+        db.commit()
 
         logger.exception(
             "Chunking failed for document version: %s",

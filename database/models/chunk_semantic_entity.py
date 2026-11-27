@@ -88,8 +88,9 @@ class ChunkSemanticEntity(Base):
         UniqueConstraint(
             "chunk_id",
             "framework",
+            "entity_type",
             "identifier",
-            name="uq_semantic_entity_chunk_identifier",
+            name="uq_semantic_entity_chunk_type_identifier",
         ),
         Index(
             "idx_semantic_entity_chunk",

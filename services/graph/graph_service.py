@@ -1,4 +1,5 @@
 import hashlib
+import re
 
 from neo4j import GraphDatabase
 
@@ -13,6 +14,22 @@ _LINKS = {
     "NEXT": ("Chunk", "Chunk"),
     "PART_OF": ("Chunk", "Chunk"),
 }
+
+
+# A section's identity comes from its own title only ("Article 32: ...",
+# "SECTION 3-...", "CHAPTER IV: ..."). Unnumbered titles get none.
+_TITLE_ID = re.compile(
+    r"^\s*(article|section|chapter|part|annex|appendix|schedule|clause)"
+    r"\s+([\dIVXLC]+[a-z]?)(?![\w.])",
+    re.IGNORECASE,
+)
+
+
+def _title_identity(title: str) -> tuple[str | None, str | None]:
+    match = _TITLE_ID.match(title or "")
+    if not match:
+        return None, None
+    return match.group(1).lower(), match.group(2)
 
 
 class GraphService:
@@ -72,19 +89,19 @@ class GraphService:
                 if prefix in sections:
                     continue
 
+                own_type, own_id = _title_identity(prefix[-1])
                 sections[prefix] = {
                     "id": section_id(prefix),
                     "version_id": version_id,
                     "title": prefix[-1],
                     "depth": depth,
                     "path": list(prefix),
-                    "identifier": None,
-                    "structure_type": None,
+                    "identifier": own_id,
+                    "structure_type": own_type,
                 }
 
                 if depth == 1:
-                    links["HAS_SECTION"].append(
-                        (version_id, sections[prefix]["id"]))
+                    links["HAS_SECTION"].append((version_id, sections[prefix]["id"]))
                 else:
                     links["HAS_SUBSECTION"].append(
                         (sections[prefix[:-1]]["id"], sections[prefix]["id"])
@@ -103,21 +120,11 @@ class GraphService:
             })
 
             if path:
-                links["IN_SECTION"].append(
-                    (chunk_id(chunk), sections[path]["id"]))
+                links["IN_SECTION"].append((chunk_id(chunk), sections[path]["id"]))
 
                 # A section takes the identity of the chunks directly in it
                 # (an Article section gets "32"). Control rows are their own
                 # nodes, so they don't name the section.
-                node = sections[path]
-                if (
-                    node["identifier"] is None
-                    and chunk.identifier
-                    and chunk.structure_type not in (None, "control", "heading")
-                ):
-                    node["identifier"] = chunk.identifier
-                    node["structure_type"] = chunk.structure_type
-
         for current, following in zip(ordered, ordered[1:]):
             links["NEXT"].append((chunk_id(current), chunk_id(following)))
 
