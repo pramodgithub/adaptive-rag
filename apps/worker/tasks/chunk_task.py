@@ -15,6 +15,8 @@ from services.ingestion.structure.structure_inference import (
     StructureInferenceService,
 )
 from services.ingestion.chunking.chunker import ComplianceChunker
+from services.ingestion.chunking.health import build_health_report
+from services.storage.file_storage import FileStorage
 from services.ingestion.semantics.extractor import SemanticEntityExtractor
 from services.ingestion.semantics.persistence import (
     SemanticEntityPersistenceService,
@@ -215,6 +217,26 @@ def chunk_document(context: dict):
             document_version_id,
         )
 
+        # Health check before anything is saved. "fail" stops here, so a
+        # broken result never reaches the database or search.
+        health = build_health_report(structured_document, candidates, chunks)
+        health_path = FileStorage().save_json(
+            health,
+            f"{document_version.file_name}.health",
+        )
+        logger.info(
+            "Health %s for document version %s: %s (report: %s)",
+            health["status"].upper(),
+            document_version_id,
+            health["summary"],
+            health_path,
+        )
+
+        if health["status"] == "fail":
+            raise ValueError(
+                f"Health check failed: {health['summary']} (report: {health_path})"
+            )
+
         reconciliation = _persist_chunks(
             db,
             document_version.id,
@@ -244,6 +266,8 @@ def chunk_document(context: dict):
             "inserted": reconciliation["inserted"],
             "updated": reconciliation["updated"],
             "deleted": reconciliation["deleted"],
+            "health_status": health["status"],
+            "health_report_path": health_path,
         }
 
     except Exception as exc:

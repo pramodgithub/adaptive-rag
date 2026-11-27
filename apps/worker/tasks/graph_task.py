@@ -57,19 +57,31 @@ def build_graph(context: dict):
             chunks,
         )
 
-        # The whole pipeline has succeeded: make this the active version,
-        # and retire any older version of the same document.
-        (
-            db.query(DocumentVersion)
-            .filter(
-                DocumentVersion.document_id == document.id,
-                DocumentVersion.id != document_version.id,
-            )
-            .update({"is_active": False}, synchronize_session=False)
-        )
-        document_version.is_active = True
+        # Only a health "pass" becomes searchable. A "review" document is
+        # fully built but stays inactive until someone approves it, and any
+        # older active version keeps serving search meanwhile.
+        health_status = context.get("health_status", "pass")
+        activate = health_status == "pass"
 
-        document.active_version_id = document_version.id
+        if activate:
+            (
+                db.query(DocumentVersion)
+                .filter(
+                    DocumentVersion.document_id == document.id,
+                    DocumentVersion.id != document_version.id,
+                )
+                .update({"is_active": False}, synchronize_session=False)
+            )
+            document_version.is_active = True
+            document.active_version_id = document_version.id
+        else:
+            logger.warning(
+                "Document version %s held back from search: health %s (report: %s)",
+                document_version_id,
+                health_status,
+                context.get("health_report_path"),
+            )
+
         document_version.processing_status = ProcessingStatus.READY
         job.progress = 100
         job.status = JobStatus.COMPLETED
@@ -87,7 +99,7 @@ def build_graph(context: dict):
             **context,
             "graph_nodes": graph_counts["sections"] + graph_counts["chunks"] + 2,
             "graph": graph_counts,
-            "status": "READY",
+            "status": "READY" if activate else "NEEDS_REVIEW",
         }
 
     except Exception as exc:

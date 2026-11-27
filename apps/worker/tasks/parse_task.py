@@ -54,10 +54,24 @@ def parse_document(context):
 
         canonical = parsed.canonical
 
+        # Keep Docling's own output. A document flagged by the health
+        # report can then be copied into tests/data/cache and re-chunked
+        # in tests without converting the file again.
+        docling_json_path = None
+        if getattr(parsed, "docling_document", None) is not None:
+            docling_json_path = storage.save_json(
+                parsed.docling_document.export_to_dict(),
+                f"{document_version.file_name}.docling",
+            )
+
         parsed_artifact = {
-            "title": canonical.title,
+            # The upload's own name, not the storage name with its prefix.
+            "title": document_version.file_name or canonical.title,
             "page_count": canonical.page_count,
-            "metadata": canonical.metadata,
+            "metadata": {
+                **canonical.metadata,
+                "docling_json_path": docling_json_path,
+            },
             "elements": [
                 {
                     "element_type": element.element_type.value,
@@ -101,6 +115,7 @@ def parse_document(context):
         return {
             **context,
             "parsed_text_path": parsed_text_path,
+            "docling_json_path": docling_json_path,
             "page_count": canonical.page_count,
         }
 
