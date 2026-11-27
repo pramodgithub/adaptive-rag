@@ -27,15 +27,31 @@ class ComplianceChunker:
             if element.metadata.get("source_ref")
         }
 
-        chunks = [
-            self._build_chunk(
+        all_row_ids = self._collect_row_ids(document)
+        rebuilt_tables: set[int] = set()
+        chunks: list[DocumentChunk] = []
+
+        for index, candidate in enumerate(candidates):
+            table_rows = self._build_table_row_chunks(
                 document=document,
                 candidate=candidate,
-                chunk_index=index,
                 ref_to_index=ref_to_index,
+                all_row_ids=all_row_ids,
+                rebuilt_tables=rebuilt_tables,
             )
-            for index, candidate in enumerate(candidates)
-        ]
+
+            if table_rows is not None:
+                chunks.extend(table_rows)
+                continue
+
+            chunks.append(
+                self._build_chunk(
+                    document=document,
+                    candidate=candidate,
+                    chunk_index=index,
+                    ref_to_index=ref_to_index,
+                )
+            )
 
         final_chunks: list[DocumentChunk] = []
 
@@ -46,6 +62,166 @@ class ComplianceChunker:
             chunk.chunk_index = index
 
         return final_chunks
+
+    # An ID at the start of a table's first cell: CC6.1.4, A.5.1, C1.1,
+    # PI1.2, 8.3.1, AC-2, AC-2(1).
+    _ROW_ID = re.compile(
+        r"^\s*((?:[A-Z]{1,4}\.?)?\d+(?:\.\d+)+[a-z]?|[A-Z]{2}-\d+(?:\(\d+\))?)"
+        r"(?=$|[\s:.,;)\-–—])"
+    )
+    _MIN_ID_ROWS = 2
+
+    @classmethod
+    def _row_id(cls, row: list[str]) -> str | None:
+        if not row:
+            return None
+
+        match = cls._ROW_ID.match(row[0] or "")
+        return match.group(1).upper() if match else None
+
+    @classmethod
+    def _collect_row_ids(cls, document: CanonicalDocument) -> set[str]:
+        ids: set[str] = set()
+
+        for element in document.elements:
+            if element.table:
+                for row in element.table.rows:
+                    row_id = cls._row_id(row)
+                    if row_id:
+                        ids.add(row_id)
+
+        return ids
+
+    @staticmethod
+    def _row_text(headers: list[str], row: list[str]) -> list[str]:
+        lines: list[str] = []
+        seen: set[str] = set()
+
+        for column, value in enumerate(row):
+            value = (value or "").strip()
+
+            # Merged cells repeat the same text across columns.
+            if not value or value in seen:
+                continue
+
+            seen.add(value)
+            header = headers[column].strip() if column < len(headers) else ""
+            lines.append(f"{header}: {value}" if header else value)
+
+        return lines
+
+    def _build_table_row_chunks(
+        self,
+        document: CanonicalDocument,
+        candidate: ChunkCandidate,
+        ref_to_index: dict[str, int],
+        all_row_ids: set[str],
+        rebuilt_tables: set[int],
+    ) -> list[DocumentChunk] | None:
+        """One chunk per ID row for tables like control matrices.
+
+        Returns None when the candidate is not made only of ID tables,
+        so it is chunked as before.
+        """
+        element_indexes = list(dict.fromkeys(
+            ref_to_index[ref]
+            for ref in candidate.source_refs
+            if ref in ref_to_index
+        ))
+
+        if not element_indexes:
+            return None
+
+        tables = [document.elements[i] for i in element_indexes]
+
+        if not all(element.table for element in tables):
+            return None
+
+        # Every table needs an ID row. Together they need two, unless the
+        # table is a continuation the parser marked (a one-row tail of a
+        # table split across pages).
+        id_rows = [
+            sum(1 for row in element.table.rows if self._row_id(row))
+            for element in tables
+        ]
+
+        if min(id_rows) == 0:
+            return None
+
+        if sum(id_rows) < self._MIN_ID_ROWS and not any(
+            element.metadata.get("continued_table") for element in tables
+        ):
+            return None
+
+        section_path = (
+            self._resolve_section_path(tables)
+            or [h.strip() for h in candidate.headings if h.strip()]
+        )
+        base_structure = self._resolve_structure(
+            elements=tables,
+            text="",
+            section_path=section_path,
+        )
+        heading_lines = [h.strip() for h in candidate.headings if h.strip()]
+        chunks: list[DocumentChunk] = []
+
+        for element_index, element in zip(element_indexes, tables):
+            # A long table is split over several candidates. Rebuild it once.
+            if element_index in rebuilt_tables:
+                continue
+
+            rebuilt_tables.add(element_index)
+            groups: list[tuple[str | None, list[list[str]]]] = []
+
+            for row in element.table.rows:
+                row_id = self._row_id(row)
+
+                if row_id or not groups:
+                    groups.append((row_id, [row]))
+                else:
+                    groups[-1][1].append(row)
+
+            for row_id, rows in groups:
+                body: list[str] = []
+                for row in rows:
+                    body.extend(self._row_text(element.table.headers, row))
+
+                if not body:
+                    continue
+
+                parent = None
+                if row_id and "." in row_id:
+                    prefix = row_id.rsplit(".", 1)[0]
+                    if prefix in all_row_ids:
+                        parent = prefix
+
+                chunks.append(
+                    DocumentChunk(
+                        chunk_index=0,
+                        text="\n".join([*heading_lines, *body]),
+                        page_start=element.page_start,
+                        page_end=element.page_end,
+                        section_path=list(section_path),
+                        structure_type="control" if row_id else base_structure["structure_type"],
+                        identifier=row_id or base_structure["identifier"],
+                        parent_identifier=(
+                            parent or base_structure["identifier"]
+                            if row_id
+                            else base_structure["parent_identifier"]
+                        ),
+                        element_indexes=[element_index],
+                        metadata={
+                            "source": "table_rows",
+                            "headings": candidate.headings,
+                            "structural_identifiers": [row_id] if row_id else [],
+                            "source_element_count": 1,
+                            "unmatched_source_refs": [],
+                            "table_row_count": len(rows),
+                        },
+                    )
+                )
+
+        return chunks
 
     def _build_chunk(
         self,

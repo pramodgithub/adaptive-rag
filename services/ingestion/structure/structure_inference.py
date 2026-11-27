@@ -46,10 +46,19 @@ class StructureInferenceService:
                     current_structure_type = None
 
                 # A recognized structural heading establishes a new identity.
-                elif structure.identifier:
+                # A heading placed by level always replaces the identity,
+                # even with none, so an old one can't leak into a new section.
+                elif (
+                    structure.identifier
+                    or structure.source == "generic.heading_level"
+                ):
                     current_identifier = structure.identifier
                     current_parent_identifier = structure.parent_identifier
-                    current_structure_type = structure.structure_type
+                    current_structure_type = (
+                        structure.structure_type
+                        if structure.identifier
+                        else None
+                    )
 
                 inferred_structure = {
                     "section_path": list(structure.section_path),

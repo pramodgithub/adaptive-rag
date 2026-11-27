@@ -7,7 +7,7 @@ services:
     container_name: rag-api
     environment:
       - PYTHONPATH=/app
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_HOME=/models/hf
     ports:
       - "8000:8000"
     env_file:
@@ -27,9 +27,9 @@ services:
       - ./enums:/app/enums
       - ./config:/app/config
       - ./services:/app/services
-      - ./tests:/app/tests
-      - ingestion_storage:/documents
-      - ingestion_storage:/processed
+      - documents_storage:/documents
+      - processed_storage:/processed
+      - hf_cache:/models/hf
     restart: unless-stopped
 
   worker:
@@ -44,7 +44,7 @@ services:
       --loglevel=info
     environment:
       - PYTHONPATH=/app
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_HOME=/models/hf
     env_file:
       - .env
     depends_on:
@@ -52,13 +52,21 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      neo4j:
+        condition: service_started
     volumes:
       - ./apps:/app/apps
+      - ./database:/app/database
+      - ./core:/app/core
       - ./tests:/app/tests
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
-      - ingestion_storage:/documents
-      - ingestion_storage:/processed
+      - ./enums:/app/enums
+      - ./config:/app/config
+      - ./services:/app/services
+      - documents_storage:/documents
+      - processed_storage:/processed
+      - hf_cache:/models/hf
     restart: unless-stopped
 
   postgres:
@@ -129,4 +137,6 @@ services:
 volumes:
   postgres_data:
   neo4j_data:
-  ingestion_storage:
+  documents_storage:
+  processed_storage:
+  hf_cache:

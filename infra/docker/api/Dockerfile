@@ -24,9 +24,10 @@ RUN pip install --no-cache-dir --timeout=100 --retries=3 -r requirements/api.txt
 COPY . .
 
 RUN useradd -m -u 1001 appuser \
-    && mkdir -p /documents \
+    && mkdir -p /documents /processed /models/hf \
     && mkdir -p /usr/local/lib/python3.11/site-packages/rapidocr/models \
-    && chown -R appuser:appuser /app /documents /usr/local/lib/python3.11/site-packages/rapidocr
+    && chown -R appuser:appuser /app /documents /processed /models/hf \
+       /usr/local/lib/python3.11/site-packages/rapidocr
 
 
 USER appuser
